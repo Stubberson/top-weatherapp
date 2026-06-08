@@ -1,0 +1,13 @@
+.weather-information {
+    display: flex;
+    flex-direction: column;
+}
+
+.today {
+    display: flex;
+    flex-direction: column;
+}
+
+#today-title::after {
+    content: '\1F324';  /* Need a conditional content here */
+}
