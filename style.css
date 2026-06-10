@@ -1,3 +1,12 @@
+body {
+    --sunny: url('./visuals/sunny.svg');
+    --partly-cloudy: url('./visuals/partly-cloudy.svg');
+    --cloudy: url('./visuals/cloudy.svg');
+    --rainy: url('./visuals/rainy.svg');
+
+    font-family: "Atkinson Hyperlegible", sans-serif;
+}
+
 .weather-information {
     display: flex;
     flex-direction: column;
@@ -6,8 +15,44 @@
 .today {
     display: flex;
     flex-direction: column;
+    gap: 4px;
 }
 
-#today-title::after {
-    content: '\1F324';  /* Need a conditional content here */
+.title-container {
+    display: flex;
+}
+
+#emoji {
+    align-self: center;
+    
+    height: 24px;
+    width: 24px;
+    margin-left: 1em;
+
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.hourly-container {
+    width: 300px;
+    overflow: scroll;
+}
+
+.hourly-container span {
+    padding: 2px;
+}
+
+.temp-curve-container {
+    width: 300px;
+    height: 50px;
+}
+
+svg {
+    width: 300px;
+    height: 50px;
+}
+
+polyline {
+    fill: none;
+    stroke-width: 2px;
 }

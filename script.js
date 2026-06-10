@@ -14,22 +14,30 @@ async function getData(location, currentHour) {
         const object = await data.json()
         console.log(object)
 
-        // 24h temperature forecast
+        // 24h forecast
         const hourlyTemps = []
+        const hourlyRain = []
+        const hoursListed = []
         for (let h = currentHour; h < 24; h++) {
             hourlyTemps.push(object.days[0].hours[h].temp)
+            hourlyRain.push(object.days[0].hours[h].precipprob)
+            hoursListed.push(object.days[0].hours[h].datetime.slice(0, 2))
         }
-        if (hourlyTemps.length < 24) {  // If hourlyTemps doesn't create full day forecast, add next day's temps until 24hs
+        if (hourlyTemps.length < 24) {  // Ensure 24h period
             const remaining = 24 - hourlyTemps.length
             for (let H = 0; H < remaining; H++) {
                 hourlyTemps.push(object.days[1].hours[H].temp)
+                hourlyRain.push(object.days[1].hours[H].precipprob)
+                hoursListed.push(object.days[1].hours[H].datetime.slice(0, 2))
             }
         }
         
         // Coming 7 days
         const weekTemps = []
+        const weekRain = []
         for (let day = 0; day < 7; day++) {
             weekTemps.push(object.days[day].temp)
+            weekRain.push(object.days[day].precipprob)
         }
 
         return filteredWeatherObject = {
@@ -42,6 +50,8 @@ async function getData(location, currentHour) {
             todayHigh: object.days[0].tempmax,
             todayMin: object.days[0].tempmin,
             dayHourlyTemps: hourlyTemps,
+            dayHourlyRain: hourlyRain,
+            hourList: hoursListed,
 
             lat: object.latitude,
             lon: object.longitude,
@@ -58,12 +68,27 @@ function displayData(data) {
     function displayToday(data) {
         const todayInfo = document.querySelector('.weather-information > .today')
 
+        const titleContainer = document.createElement('div')
+        titleContainer.className = 'title-container'
+
         const title = document.createElement('h2')
         title.id = 'today-title'
-        title.textContent = "Today's weather "
+        title.textContent = "Current weather"
+        
+        // Visually show the conditions
+        const emoji = document.createElement('div')
+        emoji.id = 'emoji'
+        if (data.precipProb >= 80) {
+            emoji.style['background-image'] = 'var(--rainy)'
+        } else if (data.cloudCover >= 75 && data.precipProb < 80) {
+            emoji.style['background-image'] = 'var(--cloudy)'
+        } else if (data.cloudCover >= 25 && data.cloudCover < 75) {
+            emoji.style['background-image'] = 'var(--partly-cloudy)'
+        } else if (data.cloudCover < 25) {
+            emoji.style['background-image'] = 'var(--sunny)'
+        }
 
-        const address = document.createElement('span')
-        address.textContent = `Location: ${capitalize(data.address)}`
+        titleContainer.append(title, emoji)
         
         const description = document.createElement('span')
         description.className = 'description'
@@ -77,8 +102,16 @@ function displayData(data) {
 
         const temperature = document.createElement('span')
         temperature.textContent = `Temperature: ${data.currentTemp}°C`
+
+        const tempCurveContainer = document.createElement('div')
+        const tempCurve = drawTemperatureCurve(data.dayHourlyTemps)
+        tempCurveContainer.className = 'temp-curve-container'
+        tempCurveContainer.append(tempCurve)
+
+        const hourlyRainContainer = document.createElement('div')
+        hourlyRainContainer.classList.add('hourly-container', 'hourly-rain')
         
-        todayInfo.append(title, address, description, clouds, precipitation, temperature)
+        todayInfo.append(titleContainer, description, temperature, precipitation, clouds, tempCurveContainer)
     }
 
     function displayForecast(data) {
@@ -86,13 +119,15 @@ function displayData(data) {
 
         const title = document.createElement('h2')
         title.textContent = "7 day forecast"
-        forecastInfo.append(title)
 
+        const tempContainer = document.createElement('div')
         for (let day = 0; day < 7; day++) {
             const temperature = document.createElement('span')
             temperature.textContent = `${data.weekTemps[day]}°C`
-            forecastInfo.append(temperature)
+            tempContainer.append(temperature)
         }
+
+        forecastInfo.append(title, tempContainer)
     }
 
     displayToday(data)
@@ -100,3 +135,41 @@ function displayData(data) {
 }
 
 
+function drawTemperatureCurve(temps) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+    const maxTemp = Math.max(...temps)
+    svg.setAttribute('viewBox', '0 0 300 50')
+    svg.setAttribute('preserveAspectRatio', 'xMinYMin meet')
+
+    // Temperature curve
+    const curve = document.createElementNS('http://www.w3.org/2000/svg', 'polyline')
+    let points = ''
+    let x = 1  // Creates room visually
+    for (let temp of temps) {
+        // Subtract temp from the max temp to reverse y-axis (higher temps are visually higher)
+        // Multiplier for clearer visual differentiation
+        points += `${x},${((maxTemp + 0.5) - temp) * 4} `
+        x += 13  // ≈ 300 / 23, width of the viewbox divided by 23 steps (1st step is at 0,y)
+    }
+    curve.setAttribute('points', points)
+
+    // Set background color under the temp curve with a polygon
+    const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon')
+    polygon.setAttribute('points', `${points} 300,50 1,50`)
+    
+    // Conditional coloring
+    const avgTemp = temps.reduce((a, b) => a + b) / temps.length
+    if (avgTemp > 20) {
+        curve.setAttribute('stroke', 'rgb(249, 115, 43)')
+        polygon.setAttribute('fill', 'rgba(249, 115, 43, 0.2)')
+    } else if (avgTemp <= 20 && avgTemp > 10) {
+        curve.setAttribute('stroke', 'rgb(255, 229, 83)')
+        polygon.setAttribute('fill', 'rgba(255, 229, 83, 0.2)')
+    } else {
+        curve.setAttribute('stroke', 'rgb(41, 101, 255)')
+        polygon.setAttribute('fill', 'rgba(41, 101, 255, 0.2)')
+    }
+       
+    svg.append(curve, polygon)
+    return svg
+}
