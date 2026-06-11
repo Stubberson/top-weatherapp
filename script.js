@@ -1,9 +1,18 @@
 const queriedLocation = document.querySelector('input')
 const button = document.querySelector('button')
+const todayInfo = document.querySelector('.weather-information > .today')
+const forecastInfo = document.querySelector('.weather-information > .forecast')
 
 button.addEventListener('click', () => {
-    const location = queriedLocation.value
-    const weatherData = getData(location)
+    while (todayInfo.children.length > 0) {  // Remove previous query
+        todayInfo.lastChild.remove()
+    }
+    while (forecastInfo.children.length > 0) {
+        forecastInfo.lastChild.remove()
+    }
+
+    let location = queriedLocation.value
+    let weatherData = getData(location)
     weatherData.then(data => displayData(data))
 })
 
@@ -14,7 +23,7 @@ async function getData(location) {
         console.log(object)
 
         // 24h forecast
-        const currentHour = object.currentConditions.datetime.slice(0, 2)
+        const currentHour = Number.parseInt(object.currentConditions.datetime.slice(0, 2))
         const hourlyTemps = []
         const hourlyRain = []
         const hoursListed = []
@@ -42,6 +51,7 @@ async function getData(location) {
 
         return filteredWeatherObject = {
             address: object.address,
+            timeOffset: object.tzoffset,
 
             currentConditionText: object.currentConditions.conditions,
             cloudCover: object.currentConditions.cloudcover,
@@ -66,11 +76,10 @@ async function getData(location) {
 const capitalize = ([ first, ...rest ]) => first.toUpperCase() + rest.join('')
 function displayData(data) {
     function displayToday(data) {
-        const todayInfo = document.querySelector('.weather-information > .today')
-
         const titleContainer = document.createElement('div')
         titleContainer.className = 'title-container'
 
+        // TODO: UNNECESSARY?
         const title = document.createElement('h2')
         title.id = 'today-title'
         title.textContent = "Current weather"
@@ -89,6 +98,20 @@ function displayData(data) {
         }
 
         titleContainer.append(title, weatherIcon)
+
+        const localTime = document.createElement('span')
+        localTime.className = 'local-time'
+        // Time conversions
+        const utcOffset = data.timeOffset
+        let currentTime
+        if (!Number.isInteger(utcOffset)) {
+            const h = Math.trunc(utcOffset)
+            const mins = Number.parseInt((utcOffset - h) * 60)
+            currentTime = Temporal.Now.plainTimeISO('UTC').add({ hours: h, minutes: mins}).toString()
+        } else {
+            currentTime = Temporal.Now.plainTimeISO('UTC').add({ hours: utcOffset}).toString()
+        }
+        localTime.textContent = 'Local time: ' + currentTime.slice(0, 5)
         
         const description = document.createElement('span')
         description.className = 'description'
@@ -111,12 +134,10 @@ function displayData(data) {
         const hourlyRainContainer = document.createElement('div')
         hourlyRainContainer.classList.add('hourly-container', 'hourly-rain')
         
-        todayInfo.append(titleContainer, description, precipitation, clouds, temperature, tempCurveContainer)
+        todayInfo.append(titleContainer, localTime, description, precipitation, clouds, temperature, tempCurveContainer)
     }
 
     function displayForecast(data) {
-        const forecastInfo = document.querySelector('.weather-information > .forecast')
-
         const title = document.createElement('h2')
         title.textContent = "7 day forecast"
 
