@@ -1,20 +1,20 @@
-const userLocation = document.querySelector('input')
+const queriedLocation = document.querySelector('input')
 const button = document.querySelector('button')
 
 button.addEventListener('click', () => {
-    const location = userLocation.value
-    const currentHour = Temporal.Now.zonedDateTimeISO().hour
-    const weatherData = getData(location, currentHour)
+    const location = queriedLocation.value
+    const weatherData = getData(location)
     weatherData.then(data => displayData(data))
 })
 
-async function getData(location, currentHour) {
+async function getData(location) {
     try {
         const data = await fetch(`https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/${location}?unitGroup=metric&key=FWNAKE9RBN8NRBU734YD32N8E&contentType=json`)
         const object = await data.json()
         console.log(object)
 
         // 24h forecast
+        const currentHour = object.currentConditions.datetime.slice(0, 2)
         const hourlyTemps = []
         const hourlyRain = []
         const hoursListed = []
@@ -76,19 +76,19 @@ function displayData(data) {
         title.textContent = "Current weather"
         
         // Visually show the conditions
-        const emoji = document.createElement('div')
-        emoji.id = 'emoji'
+        const weatherIcon = document.createElement('div')
+        weatherIcon.id = 'weatherIcon'
         if (data.precipProb >= 80) {
-            emoji.style['background-image'] = 'var(--rainy)'
+            weatherIcon.style['background-image'] = 'var(--rainy)'
         } else if (data.cloudCover >= 75 && data.precipProb < 80) {
-            emoji.style['background-image'] = 'var(--cloudy)'
+            weatherIcon.style['background-image'] = 'var(--cloudy)'
         } else if (data.cloudCover >= 25 && data.cloudCover < 75) {
-            emoji.style['background-image'] = 'var(--partly-cloudy)'
+            weatherIcon.style['background-image'] = 'var(--partly-cloudy)'
         } else if (data.cloudCover < 25) {
-            emoji.style['background-image'] = 'var(--sunny)'
+            weatherIcon.style['background-image'] = 'var(--sunny)'
         }
 
-        titleContainer.append(title, emoji)
+        titleContainer.append(title, weatherIcon)
         
         const description = document.createElement('span')
         description.className = 'description'
@@ -104,14 +104,14 @@ function displayData(data) {
         temperature.textContent = `Temperature: ${data.currentTemp}°C`
 
         const tempCurveContainer = document.createElement('div')
-        const tempCurve = drawTemperatureCurve(data.dayHourlyTemps)
+        const tempCurve = drawTemperatureCurve(data.dayHourlyTemps, data.hourList)
         tempCurveContainer.className = 'temp-curve-container'
         tempCurveContainer.append(tempCurve)
 
         const hourlyRainContainer = document.createElement('div')
         hourlyRainContainer.classList.add('hourly-container', 'hourly-rain')
         
-        todayInfo.append(titleContainer, description, temperature, precipitation, clouds, tempCurveContainer)
+        todayInfo.append(titleContainer, description, precipitation, clouds, temperature, tempCurveContainer)
     }
 
     function displayForecast(data) {
@@ -135,27 +135,51 @@ function displayData(data) {
 }
 
 
-function drawTemperatureCurve(temps) {
+function drawTemperatureCurve(temps, hours) {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
     const maxTemp = Math.max(...temps)
-    svg.setAttribute('viewBox', '0 0 300 50')
+    svg.setAttribute('viewBox', '0 0 500 100')
     svg.setAttribute('preserveAspectRatio', 'xMinYMin meet')
 
     // Temperature curve
     const curve = document.createElementNS('http://www.w3.org/2000/svg', 'polyline')
     let points = ''
-    let x = 1  // Creates room visually
-    for (let temp of temps) {
+    let x = 1
+    for (let i = 0; i < temps.length; i++) {
         // Subtract temp from the max temp to reverse y-axis (higher temps are visually higher)
-        // Multiplier for clearer visual differentiation
-        points += `${x},${((maxTemp + 0.5) - temp) * 4} `
-        x += 13  // ≈ 300 / 23, width of the viewbox divided by 23 steps (1st step is at 0,y)
+        // Multiplier (4) for clearer visual differentiation
+        points += `${x},${((maxTemp + 0.5) - temps[i]) * 4} `
+
+        // Annotate every 3rd temp with degrees and time
+        if (i % 3 === 0) {
+            // temps
+            const tempText = document.createElementNS('http://www.w3.org/2000/svg', 'text')
+            const tempTspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan')
+            tempText.classList.add('temp-annotation')
+            tempTspan.textContent = `${temps[i]}°`
+            tempTspan.setAttribute('x', `${x}`)  // x coordinate
+            tempTspan.setAttribute('y', `${((maxTemp + 5) - temps[i]) * 4}`)  // y coordinate
+            tempText.appendChild(tempTspan)
+            svg.appendChild(tempText)
+
+            // times
+            const hourText = document.createElementNS('http://www.w3.org/2000/svg', 'text')
+            const hourTspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan')
+            hourText.classList.add('hour-annotation')
+            hourTspan.textContent = `${hours[i]}:00`
+            hourTspan.setAttribute('x', `${x}`)
+            hourTspan.setAttribute('y', '100')
+            hourText.appendChild(hourTspan)
+            svg.appendChild(hourText)
+        }
+        
+        x += 22  // ≈ 500 / 23, width of the viewbox divided by 23 steps (1st step is at 0,y)
     }
     curve.setAttribute('points', points)
 
     // Set background color under the temp curve with a polygon
     const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon')
-    polygon.setAttribute('points', `${points} 300,50 1,50`)
+    polygon.setAttribute('points', `${points} 500,90 1,90`)
     
     // Conditional coloring
     const avgTemp = temps.reduce((a, b) => a + b) / temps.length
@@ -170,6 +194,6 @@ function drawTemperatureCurve(temps) {
         polygon.setAttribute('fill', 'rgba(41, 101, 255, 0.2)')
     }
        
-    svg.append(curve, polygon)
+    svg.prepend(curve, polygon)  // prepend to not cover the annotations
     return svg
 }

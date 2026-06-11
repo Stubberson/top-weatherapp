@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:ital,wght@0,200..800;1,200..800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+
 body {
     --sunny: url('./visuals/sunny.svg');
     --partly-cloudy: url('./visuals/partly-cloudy.svg');
@@ -22,7 +24,7 @@ body {
     display: flex;
 }
 
-#emoji {
+#weatherIcon {
     align-self: center;
     
     height: 24px;
@@ -42,17 +44,22 @@ body {
     padding: 2px;
 }
 
-.temp-curve-container {
-    width: 300px;
-    height: 50px;
-}
-
+.temp-curve-container,
 svg {
-    width: 300px;
-    height: 50px;
+    width: 500px;
+    height: 100px;
 }
 
 polyline {
     fill: none;
     stroke-width: 2px;
+}
+
+.temp-annotation {
+    font: 12px Atkinson Hyperlegible Mono, sans-serif;
+    font-weight: 600;
+}
+
+.hour-annotation {
+    font: 10px Atkinson Hyperlegible Mono, sans-serif;
 }
