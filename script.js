@@ -52,6 +52,8 @@ async function getData(location) {
         return filteredWeatherObject = {
             address: object.address,
             timeOffset: object.tzoffset,
+            sunrise: object.currentConditions.sunriseEpoch,
+            sunset: object.currentConditions.sunsetEpoch,
 
             currentConditionText: object.currentConditions.conditions,
             cloudCover: object.currentConditions.cloudcover,
@@ -76,65 +78,77 @@ async function getData(location) {
 const capitalize = ([ first, ...rest ]) => first.toUpperCase() + rest.join('')
 function displayData(data) {
     function displayToday(data) {
-        const titleContainer = document.createElement('div')
-        titleContainer.className = 'title-container'
-
-        // TODO: UNNECESSARY?
-        const title = document.createElement('h2')
-        title.id = 'today-title'
-        title.textContent = "Current weather"
+        // Basic info
+        const basicInfoContainer = document.createElement('div')
+        basicInfoContainer.className = 'basic-info-container'
         
-        // Visually show the conditions
         const weatherIcon = document.createElement('div')
         weatherIcon.id = 'weatherIcon'
-        if (data.precipProb >= 80) {
+        const currentEpoch = Temporal.Now.instant().epochMilliseconds / 1000  // Weather API epochs are in seconds
+        if (currentEpoch < data.sunrise || currentEpoch > data.sunset) {
+            weatherIcon.style['background-image'] = 'var(--night)'
+        } else if (data.precipProb >= 80) {
             weatherIcon.style['background-image'] = 'var(--rainy)'
         } else if (data.cloudCover >= 75 && data.precipProb < 80) {
             weatherIcon.style['background-image'] = 'var(--cloudy)'
         } else if (data.cloudCover >= 25 && data.cloudCover < 75) {
-            weatherIcon.style['background-image'] = 'var(--partly-cloudy)'
+            weatherIcon.style['background-image'] = 'var(--partly-cloudy-day)'
         } else if (data.cloudCover < 25) {
-            weatherIcon.style['background-image'] = 'var(--sunny)'
+            weatherIcon.style['background-image'] = 'var(--clear-day)'
         }
 
-        titleContainer.append(title, weatherIcon)
+        const timeTempContainer = document.createElement('div')
+        timeTempContainer.className = 'time-temp-container'
 
-        const localTime = document.createElement('span')
-        localTime.className = 'local-time'
         // Time conversions
+        let queriedTime
         const utcOffset = data.timeOffset
-        let currentTime
-        if (!Number.isInteger(utcOffset)) {
-            const h = Math.trunc(utcOffset)
-            const mins = Number.parseInt((utcOffset - h) * 60)
-            currentTime = Temporal.Now.plainTimeISO('UTC').add({ hours: h, minutes: mins}).toString()
+        const offsetHour = Math.trunc(utcOffset)
+        const offsetMins = Number.parseInt((utcOffset - offsetHour) * 60)
+        if (!Number.isInteger(utcOffset)) {    
+            queriedTime = Temporal.Now.plainTimeISO('UTC').add({ hours: offsetHour, minutes: offsetMins})
         } else {
-            currentTime = Temporal.Now.plainTimeISO('UTC').add({ hours: utcOffset}).toString()
+            queriedTime = Temporal.Now.plainTimeISO('UTC').add({ hours: utcOffset})
         }
-        localTime.textContent = 'Local time: ' + currentTime.slice(0, 5)
+
+        const localTime = document.createElement('div')
+        localTime.id = 'local-time'
+        localTime.textContent = queriedTime.toString().slice(0, 5)
+
+        const temperature = document.createElement('span')
+        temperature.id = 'temp-amount'
+        temperature.textContent = `${data.currentTemp} °C`
+
+        timeTempContainer.append(localTime, temperature)
+        basicInfoContainer.append(weatherIcon, timeTempContainer)
+
+        // Extra information
+        const extraInfoContainer = document.createElement('div')
+        extraInfoContainer.className = 'extra-info-container'
         
         const description = document.createElement('span')
         description.className = 'description'
-        description.textContent = `Description: ${data.currentConditionText}`
+        description.textContent = `${data.currentConditionText}`
 
-        const clouds = document.createElement('span')
-        clouds.textContent = `Cloud cover: ${data.cloudCover}%`
+        const cloudCover = document.createElement('span')
+        cloudCover.id = 'cloud-cover'
+        cloudCover.textContent = `Cloud cover: ${data.cloudCover}%`
 
-        const precipitation = document.createElement('span')
-        precipitation.textContent = `Precipitation probability: ${data.precipProb}%`
+        const graphLegend = document.createElement('span')
+        graphLegend.id = 'graph-legend'
+        // TODO
+        graphLegend.textContent = '- - -: rain probability'
 
-        const temperature = document.createElement('span')
-        temperature.textContent = `Temperature: ${data.currentTemp}°C`
+        extraInfoContainer.append(description, cloudCover)
+        basicInfoContainer.append(extraInfoContainer)
 
-        const tempCurveContainer = document.createElement('div')
-        const tempCurve = drawTemperatureCurve(data.dayHourlyTemps, data.hourList)
-        tempCurveContainer.className = 'temp-curve-container'
-        tempCurveContainer.append(tempCurve)
-
-        const hourlyRainContainer = document.createElement('div')
-        hourlyRainContainer.classList.add('hourly-container', 'hourly-rain')
+        // Temp and rain graph
+        const graphContainer = document.createElement('div')
+        const graph = drawGraph(data.dayHourlyTemps, data.dayHourlyRain, data.hourList)
+        graphContainer.className = 'graph-container'
+        graphContainer.append(graph)
         
-        todayInfo.append(titleContainer, localTime, description, precipitation, clouds, temperature, tempCurveContainer)
+        todayInfo.append(basicInfoContainer, graphContainer)
     }
 
     function displayForecast(data) {
@@ -156,20 +170,20 @@ function displayData(data) {
 }
 
 
-function drawTemperatureCurve(temps, hours) {
+function drawGraph(temps, rain, hours) {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
-    const maxTemp = Math.max(...temps)
-    svg.setAttribute('viewBox', '0 0 500 100')
+    svg.setAttribute('viewBox', '0 0 600 100')
     svg.setAttribute('preserveAspectRatio', 'xMinYMin meet')
 
     // Temperature curve
     const curve = document.createElementNS('http://www.w3.org/2000/svg', 'polyline')
+    const maxTemp = Math.max(...temps)
     let points = ''
-    let x = 1
+    let tempX = 1
     for (let i = 0; i < temps.length; i++) {
         // Subtract temp from the max temp to reverse y-axis (higher temps are visually higher)
         // Multiplier (4) for clearer visual differentiation
-        points += `${x},${((maxTemp + 0.5) - temps[i]) * 4} `
+        points += `${tempX},${((maxTemp + 0.5) - temps[i]) * 4} `
 
         // Annotate every 3rd temp with degrees and time
         if (i % 3 === 0) {
@@ -178,7 +192,7 @@ function drawTemperatureCurve(temps, hours) {
             const tempTspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan')
             tempText.classList.add('temp-annotation')
             tempTspan.textContent = `${temps[i]}°`
-            tempTspan.setAttribute('x', `${x}`)  // x coordinate
+            tempTspan.setAttribute('x', tempX)  // x coordinate
             tempTspan.setAttribute('y', `${((maxTemp + 5) - temps[i]) * 4}`)  // y coordinate
             tempText.appendChild(tempTspan)
             svg.appendChild(tempText)
@@ -188,33 +202,68 @@ function drawTemperatureCurve(temps, hours) {
             const hourTspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan')
             hourText.classList.add('hour-annotation')
             hourTspan.textContent = `${hours[i]}:00`
-            hourTspan.setAttribute('x', `${x}`)
-            hourTspan.setAttribute('y', '100')
+            hourTspan.setAttribute('x', tempX)
+            hourTspan.setAttribute('y', '110')
             hourText.appendChild(hourTspan)
             svg.appendChild(hourText)
         }
         
-        x += 22  // ≈ 500 / 23, width of the viewbox divided by 23 steps (1st step is at 0,y)
+        tempX += 26  // ≈ 600 / 23, width of the viewbox divided by 23 steps (1st step is at 0,y)
     }
     curve.setAttribute('points', points)
 
+    // Rain histogram
+    let previous = -1  // Ensures an annotation for 1st prob
+    let rainX = 1
+    for (let p of rain) {
+        const rainLine = document.createElementNS('http://www.w3.org/2000/svg', 'line')
+        rainLine.classList.add('rain-prob')
+        rainLine.setAttribute('x1', rainX)
+        rainLine.setAttribute('x2', rainX + 24)
+        rainLine.setAttribute('y1', 100 - p * 0.3)  // Force the rain prob lower into the graph, otherwise busy visually
+        rainLine.setAttribute('y2', 100 - p * 0.3)
+
+        const rainLineBg = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
+        rainLineBg.classList.add('rain-prob-bg')
+        rainLineBg.setAttribute('x', rainX)
+        rainLineBg.setAttribute('y', 100 - p * 0.3)
+        rainLineBg.setAttribute('width', 23)
+        rainLineBg.setAttribute('height', p * 0.3)
+        svg.prepend(rainLine, rainLineBg)
+
+        // Percentage annotation
+        if (p !== previous) {
+            const rainText = document.createElementNS('http://www.w3.org/2000/svg', 'text')
+            const rainTspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan')
+            rainText.classList.add('rain-annotation')
+            rainTspan.textContent = `${p}%`
+            rainTspan.setAttribute('x', rainX)
+            rainTspan.setAttribute('y', 100 - p * 0.3 - 2)  // Above the line
+            rainText.appendChild(rainTspan)
+            svg.appendChild(rainText)
+        }
+        
+        previous = p
+        rainX += 25
+    }
+
     // Set background color under the temp curve with a polygon
-    const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon')
-    polygon.setAttribute('points', `${points} 500,90 1,90`)
+    const curveBg = document.createElementNS('http://www.w3.org/2000/svg', 'polygon')
+    curveBg.setAttribute('points', `${points} 600,100 1,100`)
     
     // Conditional coloring
     const avgTemp = temps.reduce((a, b) => a + b) / temps.length
-    if (avgTemp > 20) {
+    if (avgTemp > 25) {
         curve.setAttribute('stroke', 'rgb(249, 115, 43)')
-        polygon.setAttribute('fill', 'rgba(249, 115, 43, 0.2)')
-    } else if (avgTemp <= 20 && avgTemp > 10) {
+        curveBg.setAttribute('fill', 'rgba(249, 115, 43, 0.2)')
+    } else if (avgTemp <= 25 && avgTemp > 15) {
         curve.setAttribute('stroke', 'rgb(255, 229, 83)')
-        polygon.setAttribute('fill', 'rgba(255, 229, 83, 0.2)')
+        curveBg.setAttribute('fill', 'rgba(255, 229, 83, 0.2)')
     } else {
         curve.setAttribute('stroke', 'rgb(41, 101, 255)')
-        polygon.setAttribute('fill', 'rgba(41, 101, 255, 0.2)')
+        curveBg.setAttribute('fill', 'rgba(41, 101, 255, 0.2)')
     }
        
-    svg.prepend(curve, polygon)  // prepend to not cover the annotations
+    svg.prepend(curve, curveBg)  // prepend to not cover the annotations
     return svg
 }

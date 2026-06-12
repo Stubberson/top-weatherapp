@@ -1,17 +1,37 @@
 @import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:ital,wght@0,200..800;1,200..800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 
 body {
-    --sunny: url('./visuals/sunny.svg');
-    --partly-cloudy: url('./visuals/partly-cloudy.svg');
+    --clear-day: url('./visuals/clear_day.svg');
+    --partly-cloudy-day: url('./visuals/partly_cloudy_day.svg');
     --cloudy: url('./visuals/cloudy.svg');
-    --rainy: url('./visuals/rainy.svg');
+    --rainy: url('./visuals/showers_rain.svg');
+    --thunder: url('./visuals/thunderstorms.svg');
+    --night: url('./visuals/mostly_clear_night.svg');
 
     font-family: "Atkinson Hyperlegible", sans-serif;
+}
+
+.hero {
+    display: flex;
+    flex-direction: column;
+    width: 600px;
+    justify-self: center;
+}
+
+.user-input {
+    display: flex;
+    width: 600px;
+    justify-self: center;
+    gap: 6px;
 }
 
 .weather-information {
     display: flex;
     flex-direction: column;
+    justify-self: center;
+    margin-top: 1em;
+
+    width: 600px;
 }
 
 .today {
@@ -20,19 +40,49 @@ body {
     gap: 4px;
 }
 
-.title-container {
+.basic-info-container {
     display: flex;
+}
+
+.time-temp-container {
+    display: flex;
+    flex-direction: column;
 }
 
 #weatherIcon {
     align-self: center;
     
-    height: 24px;
-    width: 24px;
-    margin-left: 1em;
+    height: 52px;
+    width: 52px;
 
     background-position: center;
     background-repeat: no-repeat;
+}
+
+#local-time {
+    font-family: 'Atkinson Hyperlegible Mono', sans-serif;
+    font-size: 10px;
+    padding-left: 8px
+}
+
+#temp-amount {
+    font-size: 28px;
+    padding-left: 8px;
+}
+
+.extra-info-container {
+    display: flex;
+    flex-direction: column;
+    margin-left: auto;
+    align-items: end;
+}
+
+.description {
+    font-weight: 300;
+}
+
+#cloud-cover {
+    font-size: 10px;
 }
 
 .hourly-container {
@@ -44,10 +94,10 @@ body {
     padding: 2px;
 }
 
-.temp-curve-container,
+.graph-container,
 svg {
-    width: 500px;
-    height: 100px;
+    width: 600px;
+    height: 110px;
 }
 
 polyline {
@@ -62,4 +112,19 @@ polyline {
 
 .hour-annotation {
     font: 10px Atkinson Hyperlegible Mono, sans-serif;
+}
+
+.rain-annotation {
+    font: 8px Atkinson Hyperlegible Mono, sans-serif;
+    fill: rgba(0, 0, 255, 0.8);
+}
+
+.rain-prob {
+    stroke: rgba(0, 0, 255, 0.8);
+    stroke-width: 1px;
+    stroke-dasharray: 2px 1px;
+}
+
+.rain-prob-bg {
+    fill: rgba(0, 0, 255, 0.2);
 }
