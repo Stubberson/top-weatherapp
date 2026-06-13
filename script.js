@@ -1,4 +1,5 @@
 const queriedLocation = document.querySelector('input')
+queriedLocation.focus()
 const button = document.querySelector('button')
 const todayInfo = document.querySelector('.weather-information > .today')
 const forecastInfo = document.querySelector('.weather-information > .forecast')
@@ -134,11 +135,6 @@ function displayData(data) {
         cloudCover.id = 'cloud-cover'
         cloudCover.textContent = `Cloud cover: ${data.cloudCover}%`
 
-        const graphLegend = document.createElement('span')
-        graphLegend.id = 'graph-legend'
-        // TODO
-        graphLegend.textContent = '- - -: rain probability'
-
         extraInfoContainer.append(description, cloudCover)
         basicInfoContainer.append(extraInfoContainer)
 
@@ -213,6 +209,21 @@ function drawGraph(temps, rain, hours) {
     curve.setAttribute('points', points)
 
     // Rain histogram
+    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs')  // First, create a rain drop fill for the rain prob bg
+    const pattern = document.createElementNS('http://www.w3.org/2000/svg', 'pattern')
+    const drop = document.createElementNS('http://www.w3.org/2000/svg', 'image')
+    pattern.setAttribute('id', 'drop')
+    pattern.setAttribute('viewBox', '0, 0, 5, 5')
+    pattern.setAttribute('width', '20%')
+    pattern.setAttribute('height', '20%')
+    drop.setAttribute('href', './visuals/rain_drop.svg')
+    drop.setAttribute('width', '4')
+    drop.setAttribute('height', '4')
+    drop.setAttribute('x', '1')
+    pattern.appendChild(drop)
+    defs.appendChild(pattern)
+    svg.prepend(defs)
+
     let previous = -1  // Ensures an annotation for 1st prob
     let rainX = 1
     for (let p of rain) {
@@ -226,9 +237,10 @@ function drawGraph(temps, rain, hours) {
         const rainLineBg = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
         rainLineBg.classList.add('rain-prob-bg')
         rainLineBg.setAttribute('x', rainX)
-        rainLineBg.setAttribute('y', 100 - p * 0.3)
+        rainLineBg.setAttribute('y', 100 - p * 0.28)  // Ensures that the drops don't overlap with rainLine
         rainLineBg.setAttribute('width', 23)
         rainLineBg.setAttribute('height', p * 0.3)
+        rainLineBg.setAttribute('fill', 'url(#drop)')
         svg.prepend(rainLine, rainLineBg)
 
         // Percentage annotation

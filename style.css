@@ -5,6 +5,7 @@ body {
     --partly-cloudy-day: url('./visuals/partly_cloudy_day.svg');
     --cloudy: url('./visuals/cloudy.svg');
     --rainy: url('./visuals/showers_rain.svg');
+    --rain-drop: url('./visuals/rain_drop.svg');
     --thunder: url('./visuals/thunderstorms.svg');
     --night: url('./visuals/mostly_clear_night.svg');
 
@@ -123,8 +124,4 @@ polyline {
     stroke: rgba(0, 0, 255, 0.8);
     stroke-width: 1px;
     stroke-dasharray: 2px 1px;
-}
-
-.rain-prob-bg {
-    fill: rgba(0, 0, 255, 0.2);
 }
