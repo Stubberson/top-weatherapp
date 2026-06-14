@@ -60,7 +60,7 @@ body {
     background-repeat: no-repeat;
 }
 
-#local-time {
+#time-hi-lo {
     font-family: 'Atkinson Hyperlegible Mono', sans-serif;
     font-size: 10px;
     padding-left: 8px
@@ -117,11 +117,25 @@ polyline {
 
 .rain-annotation {
     font: 8px Atkinson Hyperlegible Mono, sans-serif;
-    fill: rgba(0, 0, 255, 0.8);
 }
 
-.rain-prob {
-    stroke: rgba(0, 0, 255, 0.8);
+.rain-prob-line {
     stroke-width: 1px;
     stroke-dasharray: 2px 1px;
+}
+
+#stop0,
+#stop6 {
+    stop-color: #f8d29550;
+}
+#stop1,
+#stop5 {
+    stop-color: #C06C8450;
+}
+#stop2,
+#stop4 {
+    stop-color: #51357d50;
+}
+#stop3 {
+    stop-color: #1a212820;
 }
