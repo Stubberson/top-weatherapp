@@ -1,5 +1,5 @@
-const queriedLocation = document.querySelector('input')
-queriedLocation.focus()
+const inputContainer = document.querySelector('.user-input')
+const queriedLocation = inputContainer.querySelector('input')
 const button = document.querySelector('button')
 const todayInfo = document.querySelector('.weather-information > .today')
 const forecastInfo = document.querySelector('.weather-information > .forecast')
@@ -12,9 +12,18 @@ button.addEventListener('click', () => {
         forecastInfo.lastChild.remove()
     }
 
-    let location = queriedLocation.value
-    let weatherData = getData(location)
-    weatherData.then(data => displayData(data))
+    const location = queriedLocation.value
+    const weatherData = getData(location)
+    const loading = document.createElement('img')
+    loading.src = './visuals/loading.gif'
+    loading.style['width'] = '15px'
+    loading.style['height'] = '15px'
+    inputContainer.append(loading)
+    
+    weatherData.then(data => {
+        displayData(data)
+        loading.remove()
+    })
 })
 
 async function getData(location) {
@@ -84,8 +93,7 @@ function displayData(data) {
         
         const weatherIcon = document.createElement('div')
         weatherIcon.id = 'weatherIcon'
-        const currentEpoch = Temporal.Now.instant().epochMilliseconds / 1000  // Weather API epochs are in seconds
-        if (currentEpoch < data.sunrise || currentEpoch > data.sunset) {
+        if (!isDay(data)) {
             weatherIcon.style['background-image'] = 'var(--night)'
         } else if (data.precipProb >= 80) {
             weatherIcon.style['background-image'] = 'var(--rainy)'
@@ -167,8 +175,7 @@ function getLocalTime(offset) {
 
 function drawGraph(data) {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
-    svg.setAttribute('viewBox', '0 0 600 100')
-    svg.setAttribute('preserveAspectRatio', 'xMinYMin meet')
+    svg.setAttribute('viewBox', '0 0 600 110')
     const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs')
 
     drawTemp(svg, defs, data)
@@ -188,12 +195,18 @@ function drawTemp(svg, defs, data) {
     const curve = document.createElementNS('http://www.w3.org/2000/svg', 'polyline')
     let points = ''
     let tempX = 1
-    const [riseHour, setHour] = getRiseSet(data)  // For determining the x-coordinates for sunrise and sunset
+    let [riseHour, setHour] = getRiseSet(data)  // For determining the x-coordinates for sunrise and sunset
+    riseHour = riseHour.toString().slice(11, 13)
+    setHour = setHour.toString().slice(11, 13)
     let riseX, setX
     for (let i = 0; i < temps.length; i++) {
         // Subtract temp from the max temp to reverse y-axis (higher temps are visually higher)
         // Multiplier (4) for clearer visual differentiation
-        points += `${tempX},${((maxTemp + 0.5) - temps[i]) * 4} `
+        points += `${tempX},${((maxTemp + 2) - temps[i]) * 4} `
+
+        // Get sunset and sunrise x-coords
+        if (data.hourList[i] === riseHour) riseX = tempX
+        if (data.hourList[i] === setHour) setX = tempX
 
         // Annotate only every 3rd temp for clarity
         if (i % 3 === 0) {
@@ -203,8 +216,15 @@ function drawTemp(svg, defs, data) {
             tempText.classList.add('temp-annotation')
             tempTspan.textContent = `${temps[i]}°`
             tempTspan.setAttribute('x', tempX)
-            tempTspan.setAttribute('y', `${((maxTemp + 5) - temps[i]) * 4}`)
+            tempTspan.setAttribute('y', `${((maxTemp + 6) - temps[i]) * 4}`)
             tempText.appendChild(tempTspan)
+            if ((setX === undefined && riseX === undefined) || (riseX && setX === undefined) || (riseX > setX)) {
+                tempText.setAttribute('fill', 'black')
+            } else {
+                tempText.setAttribute('fill', 'rgb(255, 253, 238)')
+                tempText.setAttribute('filter', 'drop-shadow(0px 0px 2px rgb(243, 243, 243))')
+            }
+            
             svg.appendChild(tempText)
 
             // times
@@ -213,93 +233,41 @@ function drawTemp(svg, defs, data) {
             hourText.classList.add('hour-annotation')
             hourTspan.textContent = `${hours[i]}:00`
             hourTspan.setAttribute('x', tempX)
-            hourTspan.setAttribute('y', '110')
+            hourTspan.setAttribute('y', '109')
             hourText.appendChild(hourTspan)
             svg.appendChild(hourText)
         }
 
-        if (data.hourList[i] === riseHour) riseX = tempX
-        if (data.hourList[i] === setHour) setX = tempX
-        
         tempX += 26  // ≈ 600 / 23, width of the viewbox divided by 23 steps (1st step is at 0,y)
     }
     curve.setAttribute('points', points)
 
     // Set background color under the temp curve with a polygon
     const curveBg = document.createElementNS('http://www.w3.org/2000/svg', 'polygon')
+    curveBg.id = 'curve-default-background'
     curveBg.setAttribute('points', `${points} 600,100 1,100`)
-    determineColoring(svg, defs, avgTemp, curve, curveBg, riseX, setX)
-}
-
-function determineColoring(svg, defs, avgTemp, curve, curveBg, riseX, setX) {
-    if (avgTemp > 25) {
-        curve.setAttribute('stroke', 'rgb(249, 115, 43)')
-        curveBg.setAttribute('fill', 'rgba(249, 115, 43, 0.2)')
-    } else if (avgTemp <= 25 && avgTemp > 10) {
-        curve.setAttribute('stroke', 'rgb(255, 229, 83)')
-        curveBg.setAttribute('fill', 'rgba(255, 229, 83, 0.2)')
-    } else {
-        curve.setAttribute('stroke', 'rgb(41, 101, 255)')
-        curveBg.setAttribute('fill', 'rgba(41, 101, 255, 0.2)')
-    }
-
-    // Create gradient indicating sunrise and sunset
-    const gradient = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient')
-    gradient.id = 'background-gradient'
-    // Create 7 stops for better design of the gradient
-    const stops = Array.from({ length: 7 }, () => document.createElementNS('http://www.w3.org/2000/svg', 'stop'))
-    stops[0].setAttribute('offset', 0)
-    if (riseX < setX) {
-        stops[1].setAttribute('offset', riseX / 600 - 0.05)  // The 'offset' property only accepts percentages
-        stops[2].setAttribute('offset', riseX / 600)  // and the width of the bg === 600
-        stops[3].setAttribute('offset', (riseX + ((setX - riseX) / 2)) / 600)  // Night mid point
-        stops[4].setAttribute('offset', setX / 600)
-        stops[5].setAttribute('offset', setX / 600 + 0.05)
-    } else {
-        stops[1].setAttribute('offset', setX / 600 - 0.05)
-        stops[2].setAttribute('offset', setX / 600)
-        stops[3].setAttribute('offset', (setX + ((riseX - setX) / 2)) / 600)
-        stops[4].setAttribute('offset', riseX / 600)
-        stops[5].setAttribute('offset', riseX / 600 + 0.05)
-    }
-    stops[6].setAttribute('offset', 1)
-
-    stops.forEach((stop, i) => {
-        stop.setAttribute('id', `stop${i}`)
-        stop.setAttribute('class', 'gradient-stop')
-        gradient.appendChild(stop)
-    })
+    determineColoring(svg, defs, data, avgTemp, curve, curveBg, riseX, setX)
     
-    defs.appendChild(gradient)
-    curveBg.setAttribute('fill', 'url(#background-gradient)')
-    svg.prepend(curve, curveBg)
-}
-
-function getRiseSet(data) {
-    // Get sunrise and sunset hours for linear gradient
-    let rise
-    let set
-    const offsetHour = Math.trunc(data.timeOffset)
-    const offsetMins = Number.parseInt((data.timeOffset - offsetHour) * 60)
-    if (!Number.isInteger(data.timeOffset)) {
-        rise = Temporal.Instant.fromEpochMilliseconds(data.sunrise * 1000)
-            .add( {hours: offsetHour, minutes: offsetMins} )
-            .round('hour')
-        set = Temporal.Instant.fromEpochMilliseconds(data.sunset * 1000)
-            .add( {hours: offsetHour, minutes: offsetMins} )
-            .round('hour')
+    // Add a little moon to indicate night clearly
+    const moon = document.createElementNS('http://www.w3.org/2000/svg', 'image')
+    moon.setAttribute('href', './visuals/moon_stars.svg')
+    moon.setAttribute('width', '10px')
+    moon.setAttribute('height', '10px')
+    moon.setAttribute('y', 0)
+    // TODO: VITUIKS TOISTASEKS
+    if (isDay(data)) {
+        moon.setAttribute('x', riseX + ((setX - riseX) / 2) - 5)    
     } else {
-        rise = Temporal.Instant.fromEpochMilliseconds(data.sunrise * 1000)
-            .add( {hours: offsetHour} )
-            .round('hour')
-        set = Temporal.Instant.fromEpochMilliseconds(data.sunset * 1000)
-            .add( {hours: offsetHour} )
-            .round('hour')
+        // Need 2 moons for two nights
+        const moonTwo = document.createElementNS('http://www.w3.org/2000/svg', 'image')
+        moonTwo.setAttribute('href', './visuals/moon_stars.svg')
+        moonTwo.setAttribute('width', '10px')
+        moonTwo.setAttribute('height', '10px')
+        moonTwo.setAttribute('y', 0)
+        moonTwo.setAttribute('x', setX + ((riseX - setX) / 2) - 5)
+        svg.append(moonTwo)
     }
-    rise = rise.toString().slice(11, 13)
-    set = set.toString().slice(11, 13)
-
-    return [rise, set]
+    svg.append(moon)
 }
 
 function drawRain(svg, defs, data) {
@@ -341,7 +309,11 @@ function drawRain(svg, defs, data) {
         rainLine.setAttribute('x2', rainX + 24)
         rainLine.setAttribute('y1', 100 - rain[p] * 0.3)  // Force the rain prob lower into the graph, otherwise busy visually
         rainLine.setAttribute('y2', 100 - rain[p] * 0.3)
-        temps[p] > 0 ? rainLine.setAttribute('stroke', 'rgba(0, 0, 255, 0.8)') : rainLine.setAttribute('stroke', 'rgb(140, 140, 140)')
+        if (temps[p] > 0) {
+            rainLine.setAttribute('stroke', 'rgb(0, 0, 255)')
+        } else {
+            rainLine.setAttribute('stroke', 'rgb(140, 140, 140)')
+        }
 
         const rainLineBg = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
         rainLineBg.classList.add('rain-prob-bg')
@@ -360,12 +332,114 @@ function drawRain(svg, defs, data) {
             rainTspan.textContent = `${rain[p]}%`
             rainTspan.setAttribute('x', rainX)
             rainTspan.setAttribute('y', 100 - rain[p] * 0.3 - 2)  // Above the line
-            temps[p] > 0 ? rainText.setAttribute('fill', 'rgba(0, 0, 255, 0.8)') : rainText.setAttribute('fill', 'rgb(140, 140, 140)')
+            if (temps[p] > 0) {
+                rainText.setAttribute('fill', 'rgb(0, 0, 255)')
+            } else {
+                rainText.setAttribute('fill', 'rgb(140, 140, 140)')
+            }
             rainText.appendChild(rainTspan)
             svg.appendChild(rainText)
         }
         
         previous = rain[p]
         rainX += 25
+    }
+}
+
+function determineColoring(svg, defs, data, avgTemp, curve, curveBg, riseX, setX) {
+    // Create background gradient indicating sunrise and sunset
+    const gradient = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient')
+    gradient.id = 'curve-gradient-background'
+    
+    const stops = Array.from({ length: 19 }, () => document.createElementNS('http://www.w3.org/2000/svg', 'stop'))
+    
+    console.log('Rise: ', riseX, 'Set: ', setX)
+    
+    // The 'offset' property requires percentages and the width of the bg === 600
+    // If day, draw night, else, draw day
+    stops[0].setAttribute('offset', 0)
+    if (isDay(data)) {
+        stops.forEach((stop, i) => stop.setAttribute('id', `night-stop${i}`))
+        stops[1].setAttribute('offset', setX / 600)
+        stops[2].setAttribute('offset', setX / 600)
+        stops[3].setAttribute('offset', setX / 600 + 0.02)
+        stops[4].setAttribute('offset', setX / 600 + 0.02)
+        stops[5].setAttribute('offset', setX / 600 + 0.04)
+        stops[6].setAttribute('offset', setX / 600 + 0.04)
+        stops[7].setAttribute('offset', setX / 600 + 0.06)
+        stops[8].setAttribute('offset', setX / 600 + 0.06)
+        stops[9].setAttribute('offset', (setX + ((riseX - setX) / 2)) / 600)
+        stops[10].setAttribute('offset', riseX / 600 - 0.06)
+        stops[11].setAttribute('offset', riseX / 600 - 0.06)
+        stops[12].setAttribute('offset', riseX / 600 - 0.04)
+        stops[13].setAttribute('offset', riseX / 600 - 0.04)
+        stops[14].setAttribute('offset', riseX / 600 - 0.02)
+        stops[15].setAttribute('offset', riseX / 600 - 0.02)
+        stops[16].setAttribute('offset', riseX / 600)
+        stops[17].setAttribute('offset', riseX / 600)
+    } else {
+        stops.forEach((stop, i) => stop.setAttribute('id', `day-stop${i}`))
+        stops[1].setAttribute('offset', riseX / 600)
+        stops[2].setAttribute('offset', riseX / 600)
+        stops[3].setAttribute('offset', riseX / 600 + 0.02)
+        stops[4].setAttribute('offset', riseX / 600 + 0.02)
+        stops[5].setAttribute('offset', riseX / 600 + 0.04)
+        stops[6].setAttribute('offset', riseX / 600 + 0.04)
+        stops[7].setAttribute('offset', riseX / 600 + 0.06)
+        stops[8].setAttribute('offset', riseX / 600 + 0.06)
+        stops[9].setAttribute('offset', (riseX + ((setX - riseX) / 2)) / 600)
+        stops[10].setAttribute('offset', setX / 600 - 0.06)
+        stops[11].setAttribute('offset', setX / 600 - 0.06)
+        stops[12].setAttribute('offset', setX / 600 - 0.04)
+        stops[13].setAttribute('offset', setX / 600 - 0.04)
+        stops[14].setAttribute('offset', setX / 600 - 0.02)
+        stops[15].setAttribute('offset', setX / 600 - 0.02)
+        stops[16].setAttribute('offset', setX / 600)
+        stops[17].setAttribute('offset', setX / 600)
+    }
+    stops[18].setAttribute('offset', 1)
+    
+    stops.forEach((stop, i) => {
+        stop.setAttribute('class', 'gradient-stop')
+        gradient.appendChild(stop)
+    })
+
+    defs.appendChild(gradient)
+    curveBg.setAttribute('fill', 'url(#curve-gradient-background)')
+    curve.setAttribute('stroke', 'url(#curve-gradient-background)')
+    svg.prepend(curveBg, curve)
+}
+
+function getRiseSet(data) {
+    // Get sunrise and sunset hours in local time
+    let rise
+    let set
+    const offsetHour = Math.trunc(data.timeOffset)
+    const offsetMins = Number.parseInt((data.timeOffset - offsetHour) * 60)
+    if (!Number.isInteger(data.timeOffset)) {
+        rise = Temporal.Instant.fromEpochMilliseconds(data.sunrise * 1000)
+            .add( {hours: offsetHour, minutes: offsetMins} )
+            .round('hour')
+        set = Temporal.Instant.fromEpochMilliseconds(data.sunset * 1000)
+            .add( {hours: offsetHour, minutes: offsetMins} )
+            .round('hour')
+    } else {
+        rise = Temporal.Instant.fromEpochMilliseconds(data.sunrise * 1000)
+            .add( {hours: offsetHour} )
+            .round('hour')
+        set = Temporal.Instant.fromEpochMilliseconds(data.sunset * 1000)
+            .add( {hours: offsetHour} )
+            .round('hour')
+    }
+
+    return [rise, set]
+}
+
+function isDay(data) {
+    const currentEpoch = Temporal.Now.instant().epochMilliseconds
+    if (currentEpoch / 1000 > data.sunrise && currentEpoch / 1000 < data.sunset) {
+        return true
+    } else {
+        return false
     }
 }

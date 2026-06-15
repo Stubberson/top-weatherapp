@@ -124,18 +124,25 @@ polyline {
     stroke-dasharray: 2px 1px;
 }
 
-#stop0,
-#stop6 {
-    stop-color: #f8d29550;
-}
-#stop1,
-#stop5 {
-    stop-color: #C06C8450;
-}
-#stop2,
-#stop4 {
-    stop-color: #51357d50;
-}
-#stop3 {
-    stop-color: #1a212820;
-}
+/* Sunrise and sunset gradient */
+#night-stop0, #night-stop18 { stop-color: #00416c00; }
+#night-stop1, #night-stop17 { stop-color: #00406c10; }
+#night-stop2, #night-stop16 { stop-color: #003a6130; }
+#night-stop3, #night-stop15 { stop-color: #003a6130; }
+#night-stop4, #night-stop14 { stop-color: #00253e60; }
+#night-stop5, #night-stop13 { stop-color: #00253e60; }
+#night-stop6, #night-stop12 { stop-color: #001a2c90; }
+#night-stop7, #night-stop11 { stop-color: #001a2c90; }
+#night-stop8, #night-stop10 { stop-color: #233c4c; }
+#night-stop9 { stop-color: #233c4c; }
+
+#day-stop0, #day-stop18 { stop-color: #233c4c; }
+#day-stop1, #day-stop17 { stop-color: #233c4c; }
+#day-stop2, #day-stop16 { stop-color: #001a2c90; }
+#day-stop3, #day-stop15 { stop-color: #001a2c90; }
+#day-stop4, #day-stop14 { stop-color: #00253e60; }
+#day-stop5, #day-stop13 { stop-color: #00253e60; }
+#day-stop6, #day-stop12 { stop-color: #003a6130; }
+#day-stop7, #day-stop11 { stop-color: #003a6130; }
+#day-stop8, #day-stop10 { stop-color: #00406c10; }
+#day-stop9 { stop-color: #00406c00; }
