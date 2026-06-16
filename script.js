@@ -59,6 +59,10 @@ async function getData(location) {
             weekRain.push(object.days[day].precipprob)
         }
 
+        // The currentConditions temperature seems often off...
+        const currentTempHour = Number.parseInt(getLocalTime(object.tzoffset).toString().slice(0, 2))
+
+        // TODO: Add alerts?
         return filteredWeatherObject = {
             address: object.address,
             timeOffset: object.tzoffset,
@@ -68,7 +72,7 @@ async function getData(location) {
             currentConditionText: object.currentConditions.conditions,
             cloudCover: object.currentConditions.cloudcover,
             precipProb: object.currentConditions.precipprob,
-            currentTemp: object.currentConditions.temp,
+            currentTemp: object.days[0].hours[currentTempHour].temp,
             todayHigh: object.days[0].tempmax,
             todayLow: object.days[0].tempmin,
             dayHourlyTemps: hourlyTemps,
@@ -162,17 +166,6 @@ function displayData(data) {
     displayForecast(data)
 }
 
-function getLocalTime(offset) {
-    const offsetHour = Math.trunc(offset)
-    const offsetMins = Number.parseInt((offset - offsetHour) * 60)
-    
-    if (!Number.isInteger(offset)) {    
-        return Temporal.Now.plainTimeISO('UTC').add({ hours: offsetHour, minutes: offsetMins})
-    } else {
-        return Temporal.Now.plainTimeISO('UTC').add({ hours: offset})
-    }
-}
-
 function drawGraph(data) {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
     svg.setAttribute('viewBox', '0 0 600 110')
@@ -218,7 +211,9 @@ function drawTemp(svg, defs, data) {
             tempTspan.setAttribute('x', tempX)
             tempTspan.setAttribute('y', `${((maxTemp + 6) - temps[i]) * 4}`)
             tempText.appendChild(tempTspan)
-            if ((setX === undefined && riseX === undefined) || (riseX && setX === undefined) || (riseX > setX)) {
+            // Color the text based on sunrise and sunset. 'tempX + 1' is bc 
+            if ((tempX < setX && tempX + 1 > riseX) || (tempX + 1 > riseX && setX === undefined) || 
+                (isDay(data) && setX === undefined) || (isDay(data) && tempX + 1 > riseX)) {
                 tempText.setAttribute('fill', 'black')
             } else {
                 tempText.setAttribute('fill', 'rgb(255, 253, 238)')
@@ -248,26 +243,27 @@ function drawTemp(svg, defs, data) {
     curveBg.setAttribute('points', `${points} 600,100 1,100`)
     determineColoring(svg, defs, data, avgTemp, curve, curveBg, riseX, setX)
     
-    // Add a little moon to indicate night clearly
+    // Add a little moon(s) to indicate night(s) clearly
     const moon = document.createElementNS('http://www.w3.org/2000/svg', 'image')
     moon.setAttribute('href', './visuals/moon_stars.svg')
     moon.setAttribute('width', '10px')
     moon.setAttribute('height', '10px')
     moon.setAttribute('y', 0)
-    // TODO: VITUIKS TOISTASEKS
     if (isDay(data)) {
-        moon.setAttribute('x', riseX + ((setX - riseX) / 2) - 5)    
+        moon.setAttribute('x', riseX + ((setX - riseX) / 2) - 5)
+        svg.append(moon)
     } else {
         // Need 2 moons for two nights
+        moon.setAttribute('x', riseX / 2 - 5)
+
         const moonTwo = document.createElementNS('http://www.w3.org/2000/svg', 'image')
         moonTwo.setAttribute('href', './visuals/moon_stars.svg')
         moonTwo.setAttribute('width', '10px')
         moonTwo.setAttribute('height', '10px')
         moonTwo.setAttribute('y', 0)
-        moonTwo.setAttribute('x', setX + ((riseX - setX) / 2) - 5)
-        svg.append(moonTwo)
+        moonTwo.setAttribute('x', setX + ((600 - setX) / 2))
+        svg.append(moon, moonTwo)
     }
-    svg.append(moon)
 }
 
 function drawRain(svg, defs, data) {
@@ -351,49 +347,48 @@ function determineColoring(svg, defs, data, avgTemp, curve, curveBg, riseX, setX
     const gradient = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient')
     gradient.id = 'curve-gradient-background'
     
-    const stops = Array.from({ length: 19 }, () => document.createElementNS('http://www.w3.org/2000/svg', 'stop'))
-    
-    console.log('Rise: ', riseX, 'Set: ', setX)
-    
     // The 'offset' property requires percentages and the width of the bg === 600
     // If day, draw night, else, draw day
+    const stops = Array.from({ length: 19 }, () => document.createElementNS('http://www.w3.org/2000/svg', 'stop'))
     stops[0].setAttribute('offset', 0)
     if (isDay(data)) {
+        const nightLengthP = (riseX - setX) / 600
         stops.forEach((stop, i) => stop.setAttribute('id', `night-stop${i}`))
         stops[1].setAttribute('offset', setX / 600)
         stops[2].setAttribute('offset', setX / 600)
-        stops[3].setAttribute('offset', setX / 600 + 0.02)
-        stops[4].setAttribute('offset', setX / 600 + 0.02)
-        stops[5].setAttribute('offset', setX / 600 + 0.04)
-        stops[6].setAttribute('offset', setX / 600 + 0.04)
-        stops[7].setAttribute('offset', setX / 600 + 0.06)
-        stops[8].setAttribute('offset', setX / 600 + 0.06)
-        stops[9].setAttribute('offset', (setX + ((riseX - setX) / 2)) / 600)
-        stops[10].setAttribute('offset', riseX / 600 - 0.06)
-        stops[11].setAttribute('offset', riseX / 600 - 0.06)
-        stops[12].setAttribute('offset', riseX / 600 - 0.04)
-        stops[13].setAttribute('offset', riseX / 600 - 0.04)
-        stops[14].setAttribute('offset', riseX / 600 - 0.02)
-        stops[15].setAttribute('offset', riseX / 600 - 0.02)
+        stops[3].setAttribute('offset', setX / 600 + nightLengthP * 0.05)
+        stops[4].setAttribute('offset', setX / 600 + nightLengthP * 0.05)
+        stops[5].setAttribute('offset', setX / 600 + nightLengthP * 0.1)
+        stops[6].setAttribute('offset', setX / 600 + nightLengthP * 0.1)
+        stops[7].setAttribute('offset', setX / 600 + nightLengthP * 0.15)
+        stops[8].setAttribute('offset', setX / 600 + nightLengthP * 0.15)
+        stops[9].setAttribute('offset', (setX + ((riseX - setX) / 2)) / 600)  // Mid point
+        stops[10].setAttribute('offset', riseX / 600 - nightLengthP * 0.15)
+        stops[11].setAttribute('offset', riseX / 600 - nightLengthP * 0.15)
+        stops[12].setAttribute('offset', riseX / 600 - nightLengthP * 0.1)
+        stops[13].setAttribute('offset', riseX / 600 - nightLengthP * 0.1)
+        stops[14].setAttribute('offset', riseX / 600 - nightLengthP * 0.05)
+        stops[15].setAttribute('offset', riseX / 600 - nightLengthP * 0.05)
         stops[16].setAttribute('offset', riseX / 600)
         stops[17].setAttribute('offset', riseX / 600)
     } else {
+        const dayLengthP = (setX - riseX) / 600
         stops.forEach((stop, i) => stop.setAttribute('id', `day-stop${i}`))
-        stops[1].setAttribute('offset', riseX / 600)
-        stops[2].setAttribute('offset', riseX / 600)
-        stops[3].setAttribute('offset', riseX / 600 + 0.02)
-        stops[4].setAttribute('offset', riseX / 600 + 0.02)
-        stops[5].setAttribute('offset', riseX / 600 + 0.04)
-        stops[6].setAttribute('offset', riseX / 600 + 0.04)
-        stops[7].setAttribute('offset', riseX / 600 + 0.06)
-        stops[8].setAttribute('offset', riseX / 600 + 0.06)
+        stops[1].setAttribute('offset', riseX / 600 - dayLengthP * 0.15)
+        stops[2].setAttribute('offset', riseX / 600 - dayLengthP * 0.15)
+        stops[3].setAttribute('offset', riseX / 600 - dayLengthP * 0.1)
+        stops[4].setAttribute('offset', riseX / 600 - dayLengthP * 0.1)
+        stops[5].setAttribute('offset', riseX / 600 - dayLengthP * 0.05)
+        stops[6].setAttribute('offset', riseX / 600 - dayLengthP * 0.05)
+        stops[7].setAttribute('offset', riseX / 600)
+        stops[8].setAttribute('offset', riseX / 600)
         stops[9].setAttribute('offset', (riseX + ((setX - riseX) / 2)) / 600)
-        stops[10].setAttribute('offset', setX / 600 - 0.06)
-        stops[11].setAttribute('offset', setX / 600 - 0.06)
-        stops[12].setAttribute('offset', setX / 600 - 0.04)
-        stops[13].setAttribute('offset', setX / 600 - 0.04)
-        stops[14].setAttribute('offset', setX / 600 - 0.02)
-        stops[15].setAttribute('offset', setX / 600 - 0.02)
+        stops[10].setAttribute('offset', setX / 600 + dayLengthP * 0.05)
+        stops[11].setAttribute('offset', setX / 600 + dayLengthP * 0.05)
+        stops[12].setAttribute('offset', setX / 600 + dayLengthP * 0.1)
+        stops[13].setAttribute('offset', setX / 600 + dayLengthP * 0.1)
+        stops[14].setAttribute('offset', setX / 600 + dayLengthP * 0.15)
+        stops[15].setAttribute('offset', setX / 600 + dayLengthP * 0.15)
         stops[16].setAttribute('offset', setX / 600)
         stops[17].setAttribute('offset', setX / 600)
     }
@@ -435,7 +430,19 @@ function getRiseSet(data) {
     return [rise, set]
 }
 
+function getLocalTime(offset) {
+    const offsetHour = Math.trunc(offset)
+    const offsetMins = Number.parseInt((offset - offsetHour) * 60)
+    
+    if (!Number.isInteger(offset)) {    
+        return Temporal.Now.plainTimeISO('UTC').add({ hours: offsetHour, minutes: offsetMins})
+    } else {
+        return Temporal.Now.plainTimeISO('UTC').add({ hours: offset})
+    }
+}
+
 function isDay(data) {
+    // Is it currently day locally?
     const currentEpoch = Temporal.Now.instant().epochMilliseconds
     if (currentEpoch / 1000 > data.sunrise && currentEpoch / 1000 < data.sunset) {
         return true

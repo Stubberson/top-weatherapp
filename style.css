@@ -124,7 +124,7 @@ polyline {
     stroke-dasharray: 2px 1px;
 }
 
-/* Sunrise and sunset gradient */
+/* Sunrise and sunset gradients */
 #night-stop0, #night-stop18 { stop-color: #00416c00; }
 #night-stop1, #night-stop17 { stop-color: #00406c10; }
 #night-stop2, #night-stop16 { stop-color: #003a6130; }
