@@ -171,13 +171,18 @@ function drawGraph(data) {
     svg.setAttribute('viewBox', '0 0 600 110')
     const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs')
 
-    drawTemp(svg, defs, data)
-    drawRain(svg, defs, data)
+    // Determine the x-coordinates for sunrise and sunset
+    let [riseHour, setHour] = getRiseSet(data)
+    riseHour = riseHour.toString().slice(11, 13)
+    setHour = setHour.toString().slice(11, 13)
+
+    drawTemp(svg, defs, data, riseHour, setHour)
+    drawRain(svg, defs, data, riseHour, setHour)
 
     return svg
 }
 
-function drawTemp(svg, defs, data) {
+function drawTemp(svg, defs, data, riseHour, setHour) {
     const temps = data.dayHourlyTemps
     const hours = data.hourList
 
@@ -188,9 +193,6 @@ function drawTemp(svg, defs, data) {
     const curve = document.createElementNS('http://www.w3.org/2000/svg', 'polyline')
     let points = ''
     let tempX = 1
-    let [riseHour, setHour] = getRiseSet(data)  // For determining the x-coordinates for sunrise and sunset
-    riseHour = riseHour.toString().slice(11, 13)
-    setHour = setHour.toString().slice(11, 13)
     let riseX, setX
     for (let i = 0; i < temps.length; i++) {
         // Subtract temp from the max temp to reverse y-axis (higher temps are visually higher)
@@ -211,13 +213,14 @@ function drawTemp(svg, defs, data) {
             tempTspan.setAttribute('x', tempX)
             tempTspan.setAttribute('y', `${((maxTemp + 6) - temps[i]) * 4}`)
             tempText.appendChild(tempTspan)
-            // Color the text based on sunrise and sunset. 'tempX + 1' is bc 
-            if ((tempX < setX && tempX + 1 > riseX) || (tempX + 1 > riseX && setX === undefined) || 
-                (isDay(data) && setX === undefined) || (isDay(data) && tempX + 1 > riseX)) {
+            // Color the text based on sunrise and sunset. 'tempX +/- 1' is for visual clarity
+            if ((tempX - 1 < setX && tempX + 1 > riseX) || (tempX + 1 > riseX && setX === undefined) || 
+                (isDay(data) && setX === undefined) || (tempX + 1 > riseX && riseX > setX) || (riseX === setX && riseX !== undefined)) {
                 tempText.setAttribute('fill', 'black')
             } else {
                 tempText.setAttribute('fill', 'rgb(255, 253, 238)')
-                tempText.setAttribute('filter', 'drop-shadow(0px 0px 2px rgb(243, 243, 243))')
+                tempText.setAttribute('filter', 'drop-shadow(0px 1px 0px rgb(35, 60, 76))')
+                tempTspan.setAttribute('filter', 'drop-shadow(0px 0px 2px rgb(243, 243, 243))')
             }
             
             svg.appendChild(tempText)
@@ -243,17 +246,17 @@ function drawTemp(svg, defs, data) {
     curveBg.setAttribute('points', `${points} 600,100 1,100`)
     determineColoring(svg, defs, data, avgTemp, curve, curveBg, riseX, setX)
     
-    // Add a little moon(s) to indicate night(s) clearly
+    // Add little moon(s) to indicate night(s) clearly
     const moon = document.createElementNS('http://www.w3.org/2000/svg', 'image')
     moon.setAttribute('href', './visuals/moon_stars.svg')
     moon.setAttribute('width', '10px')
     moon.setAttribute('height', '10px')
     moon.setAttribute('y', 0)
-    if (isDay(data)) {
+    if (riseX > setX || riseX === setX) {
         moon.setAttribute('x', riseX + ((setX - riseX) / 2) - 5)
         svg.append(moon)
     } else {
-        // Need 2 moons for two nights
+        // 2 moons if day is short
         moon.setAttribute('x', riseX / 2 - 5)
 
         const moonTwo = document.createElementNS('http://www.w3.org/2000/svg', 'image')
@@ -266,7 +269,7 @@ function drawTemp(svg, defs, data) {
     }
 }
 
-function drawRain(svg, defs, data) {
+function drawRain(svg, defs, data, riseHour, setHour) {
     const temps = data.dayHourlyTemps
     const rain = data.dayHourlyRain
 
@@ -275,22 +278,42 @@ function drawRain(svg, defs, data) {
     const drop = document.createElementNS('http://www.w3.org/2000/svg', 'image')
     const snowPattern = document.createElementNS('http://www.w3.org/2000/svg', 'pattern')
     const snow = document.createElementNS('http://www.w3.org/2000/svg', 'image')
-    rainPattern.setAttribute('id', 'drop')
-    rainPattern.setAttribute('viewBox', '0, 0, 10, 10')
-    rainPattern.setAttribute('width', '50%')
-    rainPattern.setAttribute('height', '50%')
-    snowPattern.setAttribute('id', 'snow')
-    snowPattern.setAttribute('viewBox', '0, 0, 10, 10')
+    rainPattern.id = 'rain-pattern'
+    rainPattern.setAttribute('width', '100%')
+    rainPattern.setAttribute('height', '100%')
+    snowPattern.id = 'snow-pattern'
     snowPattern.setAttribute('width', '50%')
-    snowPattern.setAttribute('height', '50%')
+    snowPattern.setAttribute('height', '100%')
+    drop.id = 'rain-drop'
     drop.setAttribute('href', './visuals/rain_drop.svg')
     drop.setAttribute('width', '7')
     drop.setAttribute('height', '7')
-    drop.setAttribute('x', '1.5')
+    drop.setAttribute('x', '9')
+    snow.id = 'snow-drop'
     snow.setAttribute('href', './visuals/snowflake.svg')
     snow.setAttribute('width', '7')
     snow.setAttribute('height', '7')
-    snow.setAttribute('x', '1.5')
+    snow.setAttribute('x', '4.5')
+
+    // Rain-fall and snow-fall animations
+    const rainFall = document.createElementNS('http://www.w3.org/2000/svg', 'animateTransform')
+    rainFall.setAttribute('attributeName', 'transform')
+    rainFall.setAttribute('type', 'translate')
+    rainFall.setAttribute('from', '0 -10')
+    rainFall.setAttribute('to', '0 30')
+    rainFall.setAttribute('dur', '2s')
+    rainFall.setAttribute('repeatCount', 'indefinite')
+
+    const snowFall = document.createElementNS('http://www.w3.org/2000/svg', 'animateTransform')
+    snowFall.setAttribute('attributeName', 'transform')
+    snowFall.setAttribute('type', 'translate')
+    snowFall.setAttribute('from', '0 -10')
+    snowFall.setAttribute('to', '0 30')
+    snowFall.setAttribute('dur', '2s')
+    snowFall.setAttribute('repeatCount', 'indefinite')
+
+    drop.append(rainFall)
+    snow.append(snowFall)
     rainPattern.appendChild(drop)
     snowPattern.appendChild(snow)
     defs.append(rainPattern, snowPattern)
@@ -298,26 +321,27 @@ function drawRain(svg, defs, data) {
 
     let previous = -1  // Ensures an annotation for 1st prob
     let rainX = 1
+    let riseX, setX
     for (let p = 0; p < rain.length; p++) {
+        // Get sunset and sunrise x-coords
+        if (data.hourList[p] === riseHour) riseX = rainX
+        if (data.hourList[p] === setHour) setX = rainX
+
         const rainLine = document.createElementNS('http://www.w3.org/2000/svg', 'line')
         rainLine.classList.add('rain-prob-line')
         rainLine.setAttribute('x1', rainX)
         rainLine.setAttribute('x2', rainX + 24)
         rainLine.setAttribute('y1', 100 - rain[p] * 0.3)  // Force the rain prob lower into the graph, otherwise busy visually
         rainLine.setAttribute('y2', 100 - rain[p] * 0.3)
-        if (temps[p] > 0) {
-            rainLine.setAttribute('stroke', 'rgb(0, 0, 255)')
-        } else {
-            rainLine.setAttribute('stroke', 'rgb(140, 140, 140)')
-        }
+        temps[p] > 0 ? rainLine.setAttribute('stroke', 'rgb(60, 157, 255)') : rainLine.setAttribute('stroke', 'rgb(140, 140, 140)')
 
         const rainLineBg = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
         rainLineBg.classList.add('rain-prob-bg')
         rainLineBg.setAttribute('x', rainX)
         rainLineBg.setAttribute('y', 100 - rain[p] * 0.28)  // Ensures that the drops don't overlap with rainLine
         rainLineBg.setAttribute('width', 23)
-        rainLineBg.setAttribute('height', rain[p] * 0.3)
-        temps[p] > 0 ? rainLineBg.setAttribute('fill', 'url(#drop)') : rainLineBg.setAttribute('fill', 'url(#snow)')
+        rainLineBg.setAttribute('height', rain[p] * 0.28)
+        temps[p] > 0 ? rainLineBg.setAttribute('fill', 'url(#rain-pattern)') : rainLineBg.setAttribute('fill', 'url(#snow-pattern)')
         svg.append(rainLine, rainLineBg)
 
         // Percentage annotation
@@ -327,12 +351,9 @@ function drawRain(svg, defs, data) {
             rainText.classList.add('rain-annotation')
             rainTspan.textContent = `${rain[p]}%`
             rainTspan.setAttribute('x', rainX)
-            rainTspan.setAttribute('y', 100 - rain[p] * 0.3 - 2)  // Above the line
-            if (temps[p] > 0) {
-                rainText.setAttribute('fill', 'rgb(0, 0, 255)')
-            } else {
-                rainText.setAttribute('fill', 'rgb(140, 140, 140)')
-            }
+            rainTspan.setAttribute('y', 100 - rain[p] * 0.3 - 2)  // '- 2' -> Above the line
+            temps[p] > 0 ? rainText.setAttribute('fill', 'rgb(60, 157, 255)') : rainText.setAttribute('fill', 'rgb(140, 140, 140)')
+            
             rainText.appendChild(rainTspan)
             svg.appendChild(rainText)
         }
@@ -348,10 +369,10 @@ function determineColoring(svg, defs, data, avgTemp, curve, curveBg, riseX, setX
     gradient.id = 'curve-gradient-background'
     
     // The 'offset' property requires percentages and the width of the bg === 600
-    // If day, draw night, else, draw day
     const stops = Array.from({ length: 19 }, () => document.createElementNS('http://www.w3.org/2000/svg', 'stop'))
     stops[0].setAttribute('offset', 0)
-    if (isDay(data)) {
+    // (Basically) if day, draw night, else, draw day
+    if ((riseX > setX) || (riseX === setX)) {
         const nightLengthP = (riseX - setX) / 600
         stops.forEach((stop, i) => stop.setAttribute('id', `night-stop${i}`))
         stops[1].setAttribute('offset', setX / 600)
@@ -402,7 +423,7 @@ function determineColoring(svg, defs, data, avgTemp, curve, curveBg, riseX, setX
     defs.appendChild(gradient)
     curveBg.setAttribute('fill', 'url(#curve-gradient-background)')
     curve.setAttribute('stroke', 'url(#curve-gradient-background)')
-    svg.prepend(curveBg, curve)
+    svg.prepend(curve, curveBg)
 }
 
 function getRiseSet(data) {
