@@ -1,5 +1,6 @@
 const inputContainer = document.querySelector('.user-input')
 const queriedLocation = inputContainer.querySelector('input')
+queriedLocation.focus()
 const button = document.querySelector('button')
 const todayInfo = document.querySelector('.weather-information > .today')
 const forecastInfo = document.querySelector('.weather-information > .forecast')
@@ -33,20 +34,23 @@ async function getData(location) {
         console.log(object)
 
         // 24h forecast
-        const currentHour = Number.parseInt(object.currentConditions.datetime.slice(0, 2))
+        const currentHour = Number.parseInt(getLocalTime(object.tzoffset).toString().slice(0, 2))
         const hourlyTemps = []
-        const hourlyRain = []
+        const hourlyRainA = []
+        const hourlyRainP = []
         const hoursListed = []
         for (let h = currentHour; h < 24; h++) {
             hourlyTemps.push(object.days[0].hours[h].temp)
-            hourlyRain.push(object.days[0].hours[h].precipprob)
+            hourlyRainA.push(object.days[0].hours[h].precip)
+            hourlyRainP.push(object.days[0].hours[h].precipprob)
             hoursListed.push(object.days[0].hours[h].datetime.slice(0, 2))
         }
         if (hourlyTemps.length < 24) {  // Ensure 24h period
             const remaining = 24 - hourlyTemps.length
             for (let H = 0; H < remaining; H++) {
                 hourlyTemps.push(object.days[1].hours[H].temp)
-                hourlyRain.push(object.days[1].hours[H].precipprob)
+                hourlyRainA.push(object.days[1].hours[H].precip)
+                hourlyRainP.push(object.days[1].hours[H].precipprob)
                 hoursListed.push(object.days[1].hours[H].datetime.slice(0, 2))
             }
         }
@@ -59,12 +63,9 @@ async function getData(location) {
             weekRain.push(object.days[day].precipprob)
         }
 
-        // The currentConditions temperature seems often off...
-        const currentTempHour = Number.parseInt(getLocalTime(object.tzoffset).toString().slice(0, 2))
-
         // TODO: Add alerts?
         return filteredWeatherObject = {
-            address: object.address,
+            address: object.resolvedAddress,
             timeOffset: object.tzoffset,
             sunrise: object.currentConditions.sunriseEpoch,
             sunset: object.currentConditions.sunsetEpoch,
@@ -72,11 +73,12 @@ async function getData(location) {
             currentConditionText: object.currentConditions.conditions,
             cloudCover: object.currentConditions.cloudcover,
             precipProb: object.currentConditions.precipprob,
-            currentTemp: object.days[0].hours[currentTempHour].temp,
+            currentTemp: object.days[0].hours[currentHour].temp,
             todayHigh: object.days[0].tempmax,
             todayLow: object.days[0].tempmin,
             dayHourlyTemps: hourlyTemps,
-            dayHourlyRain: hourlyRain,
+            hourlyRainAmount: hourlyRainA,
+            hourlyRainProb: hourlyRainP,
             hourList: hoursListed,
 
             lat: object.latitude,
@@ -127,6 +129,16 @@ function displayData(data) {
         // Extra information
         const extraInfoContainer = document.createElement('div')
         extraInfoContainer.className = 'extra-info-container'
+
+        const address = document.createElement('span')
+        address.id = 'queried-address'
+        const capitalize = ([ first, ...rest ]) => {
+            if (rest.includes(' ')) {
+                rest.splice(rest.indexOf(' ') + 1, 1, rest[rest.indexOf(' ') + 1].toUpperCase())
+            } 
+            return first.toUpperCase() + rest.join('')
+        }
+        address.textContent = `${capitalize(data.address)}`
         
         const description = document.createElement('span')
         description.className = 'description'
@@ -136,7 +148,7 @@ function displayData(data) {
         cloudCover.id = 'cloud-cover'
         cloudCover.textContent = `Cloud cover: ${data.cloudCover}%`
 
-        extraInfoContainer.append(description, cloudCover)
+        extraInfoContainer.append(address, description, cloudCover)
         basicInfoContainer.append(extraInfoContainer)
 
         // Today's temp and rain graph
@@ -271,25 +283,23 @@ function drawTemp(svg, defs, data, riseHour, setHour) {
 
 function drawRain(svg, defs, data, riseHour, setHour) {
     const temps = data.dayHourlyTemps
-    const rain = data.dayHourlyRain
+    const rain = data.hourlyRainProb
 
     // Pattern definitions for rain and snow
-    const rainPattern = document.createElementNS('http://www.w3.org/2000/svg', 'pattern')
-    const drop = document.createElementNS('http://www.w3.org/2000/svg', 'image')
+    const rainPatternLight = document.createElementNS('http://www.w3.org/2000/svg', 'pattern')
     const snowPattern = document.createElementNS('http://www.w3.org/2000/svg', 'pattern')
+    const drop = document.createElementNS('http://www.w3.org/2000/svg', 'image')
     const snow = document.createElementNS('http://www.w3.org/2000/svg', 'image')
-    rainPattern.id = 'rain-pattern'
-    rainPattern.setAttribute('width', '100%')
-    rainPattern.setAttribute('height', '100%')
+    rainPatternLight.id = 'rain-pattern-light'
+    rainPatternLight.setAttribute('width', '100%')
+    rainPatternLight.setAttribute('height', '100%')
     snowPattern.id = 'snow-pattern'
     snowPattern.setAttribute('width', '50%')
     snowPattern.setAttribute('height', '100%')
-    drop.id = 'rain-drop'
     drop.setAttribute('href', './visuals/rain_drop.svg')
     drop.setAttribute('width', '7')
     drop.setAttribute('height', '7')
-    drop.setAttribute('x', '9')
-    snow.id = 'snow-drop'
+    drop.setAttribute('x', '8')
     snow.setAttribute('href', './visuals/snowflake.svg')
     snow.setAttribute('width', '7')
     snow.setAttribute('height', '7')
@@ -314,10 +324,9 @@ function drawRain(svg, defs, data, riseHour, setHour) {
 
     drop.append(rainFall)
     snow.append(snowFall)
-    rainPattern.appendChild(drop)
+    rainPatternLight.appendChild(drop)
     snowPattern.appendChild(snow)
-    defs.append(rainPattern, snowPattern)
-    svg.prepend(defs)
+    defs.append(rainPatternLight, snowPattern)
 
     let previous = -1  // Ensures an annotation for 1st prob
     let rainX = 1
@@ -341,7 +350,49 @@ function drawRain(svg, defs, data, riseHour, setHour) {
         rainLineBg.setAttribute('y', 100 - rain[p] * 0.28)  // Ensures that the drops don't overlap with rainLine
         rainLineBg.setAttribute('width', 23)
         rainLineBg.setAttribute('height', rain[p] * 0.28)
-        temps[p] > 0 ? rainLineBg.setAttribute('fill', 'url(#rain-pattern)') : rainLineBg.setAttribute('fill', 'url(#snow-pattern)')
+        temps[p] > 0 ? rainLineBg.setAttribute('fill', 'url(#rain-pattern-light)') : rainLineBg.setAttribute('fill', 'url(#snow-pattern)')
+        // Add water droplets visually, if heavier rain fall
+        const dropTwo = document.createElementNS('http://www.w3.org/2000/svg', 'image')
+        if (data.hourlyRainAmount[p] >= 3) {
+            const rainPatternHeavy = rainPatternLight.cloneNode()
+            rainPatternHeavy.id = 'rain-pattern-heavy'
+            rainPatternHeavy.setAttribute('width', '33%')
+            
+            const dropThree =  drop.cloneNode()
+            dropThree.setAttribute('width', '9')
+            dropThree.setAttribute('height', '9')
+            dropThree.setAttribute('x', '0.08%')  // percentage is from the svg width (600px) for some reason
+            dropThree.setAttribute('y', '-1')
+            
+            const rainFallThree = rainFall.cloneNode()
+            rainFallThree.setAttribute('dur', '1s')
+            
+            dropThree.appendChild(rainFallThree)
+            rainPatternHeavy.appendChild(dropThree)
+            defs.appendChild(rainPatternHeavy)
+
+            temps[p] > 0 ? rainLineBg.setAttribute('fill', 'url(#rain-pattern-heavy)') : rainLineBg.setAttribute('fill', 'url(#snow-pattern)')
+        } else if (data.hourlyRainAmount[p] < 3 && data.hourlyRainAmount[p] >= 2) {
+            const rainPatternMedium = rainPatternLight.cloneNode()
+            rainPatternMedium.id = 'rain-pattern-medium'
+            rainPatternMedium.setAttribute('width', '50%')
+            
+            const dropTwo =  drop.cloneNode()
+            dropTwo.setAttribute('width', '8')
+            dropTwo.setAttribute('height', '8')
+            dropTwo.setAttribute('x', '0.3%')
+            dropTwo.setAttribute('y', '-0.5')
+            
+            const rainFallTwo = rainFall.cloneNode()
+            rainFallTwo.setAttribute('dur', '1.5s')
+            
+            dropTwo.appendChild(rainFallTwo)
+            rainPatternMedium.appendChild(dropTwo)
+            defs.appendChild(rainPatternMedium)
+
+            temps[p] > 0 ? rainLineBg.setAttribute('fill', 'url(#rain-pattern-medium)') : rainLineBg.setAttribute('fill', 'url(#snow-pattern)')
+        }
+
         svg.append(rainLine, rainLineBg)
 
         // Percentage annotation
@@ -361,6 +412,7 @@ function drawRain(svg, defs, data, riseHour, setHour) {
         previous = rain[p]
         rainX += 25
     }
+    svg.prepend(defs)
 }
 
 function determineColoring(svg, defs, data, avgTemp, curve, curveBg, riseX, setX) {

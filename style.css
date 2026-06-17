@@ -78,6 +78,10 @@ body {
     align-items: end;
 }
 
+#queried-address {
+    font-size: small;
+}
+
 .description {
     font-weight: 300;
 }
