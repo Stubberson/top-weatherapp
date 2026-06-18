@@ -34,12 +34,12 @@ async function getData(location) {
         console.log(object)
 
         // 24h forecast
-        const currentHour = Number.parseInt(getLocalTime(object.tzoffset).toString().slice(0, 2))
+        const currentLocalHour = Number.parseInt(getLocalTime(object.tzoffset).toString().slice(0, 2))
         const hourlyTemps = []
         const hourlyRainA = []
         const hourlyRainP = []
         const hoursListed = []
-        for (let h = currentHour; h < 24; h++) {
+        for (let h = currentLocalHour; h < 24; h++) {
             hourlyTemps.push(object.days[0].hours[h].temp)
             hourlyRainA.push(object.days[0].hours[h].precip)
             hourlyRainP.push(object.days[0].hours[h].precipprob)
@@ -56,16 +56,23 @@ async function getData(location) {
         }
         
         // Coming 7 days
-        const weekTemps = []
+        const weekDateTime = []
+        const weekTempsHi = []
+        const weekTempsLo = []
         const weekRain = []
-        for (let day = 0; day < 7; day++) {
-            weekTemps.push(object.days[day].temp)
-            weekRain.push(object.days[day].precipprob)
+        const weekClouds = []
+        for (let day = 1; day < 8; day++) {  // Start from tomorrow
+            weekDateTime.push(object.days[day].datetime)
+            weekTempsHi.push(object.days[day].tempmax)
+            weekTempsLo.push(object.days[day].tempmin)
+            weekRain.push(object.days[day].precip)
+            weekClouds.push(object.days[day].cloudcover)
         }
 
         // TODO: Add alerts?
         return filteredWeatherObject = {
             address: object.resolvedAddress,
+            date: object.days[0].datetime,
             timeOffset: object.tzoffset,
             sunrise: object.currentConditions.sunriseEpoch,
             sunset: object.currentConditions.sunsetEpoch,
@@ -73,7 +80,7 @@ async function getData(location) {
             currentConditionText: object.currentConditions.conditions,
             cloudCover: object.currentConditions.cloudcover,
             precipProb: object.currentConditions.precipprob,
-            currentTemp: object.days[0].hours[currentHour].temp,
+            currentTemp: object.days[0].hours[currentLocalHour].temp,
             todayHigh: object.days[0].tempmax,
             todayLow: object.days[0].tempmin,
             dayHourlyTemps: hourlyTemps,
@@ -84,7 +91,11 @@ async function getData(location) {
             lat: object.latitude,
             lon: object.longitude,
             
-            weekTemps: weekTemps
+            weekDateTime: weekDateTime,
+            weekTempsHi: weekTempsHi,
+            weekTempsLo: weekTempsLo,
+            weekRain: weekRain,
+            weekClouds: weekClouds
         }
     } catch (error) {
         console.error(error)
@@ -98,12 +109,14 @@ function displayData(data) {
         basicInfoContainer.className = 'basic-info-container'
         
         const weatherIcon = document.createElement('div')
-        weatherIcon.id = 'weatherIcon'
+        weatherIcon.id = 'weather-icon'
         if (!isDay(data)) {
             weatherIcon.style['background-image'] = 'var(--night)'
-        } else if (data.precipProb >= 80) {
-            weatherIcon.style['background-image'] = 'var(--rainy)'
-        } else if (data.cloudCover >= 75 && data.precipProb < 80) {
+        } else if (data.hourlyRainAmount[0] >= 3) {
+            weatherIcon.style['background-image'] = 'var(--heavy-rain)'
+        } else if (data.hourlyRainAmount[0] < 3 && data.hourlyRainAmount[0] >= 0.2) {
+            weatherIcon.style['background-image'] = 'var(--drizzle)'
+        } else if (data.cloudCover >= 75 && data.hourlyRainAmount[0] < 0.2) {
             weatherIcon.style['background-image'] = 'var(--cloudy)'
         } else if (data.cloudCover >= 25 && data.cloudCover < 75) {
             weatherIcon.style['background-image'] = 'var(--partly-cloudy-day)'
@@ -114,16 +127,17 @@ function displayData(data) {
         const timeTempContainer = document.createElement('div')
         timeTempContainer.className = 'time-temp-container'
 
-        const timeHiLo = document.createElement('div')
-        timeHiLo.id = 'time-hi-lo'
-        timeHiLo.textContent = getLocalTime(data.timeOffset).toString().slice(0, 5)
-        timeHiLo.textContent += ' – High: ' + data.todayHigh + '°C | Low: ' + data.todayLow + '°C'
+        const dateHiLo = document.createElement('div')
+        dateHiLo.id = 'date-hi-lo'
+        dateHiLo.textContent = Temporal.PlainDate.from(data.date).toLocaleString('en-US', { weekday: 'short' }) + ', '
+        dateHiLo.textContent += getLocalTime(data.timeOffset).toString().slice(0, 5)
+        dateHiLo.textContent += ' – High: ' + data.todayHigh + '°C | Low: ' + data.todayLow + '°C'
 
         const temperature = document.createElement('span')
         temperature.id = 'temp-amount'
         temperature.textContent = `${data.currentTemp}°C`
 
-        timeTempContainer.append(timeHiLo, temperature)
+        timeTempContainer.append(dateHiLo, temperature)
         basicInfoContainer.append(weatherIcon, timeTempContainer)
 
         // Extra information
@@ -140,15 +154,15 @@ function displayData(data) {
         }
         address.textContent = `${capitalize(data.address)}`
         
-        const description = document.createElement('span')
-        description.className = 'description'
-        description.textContent = `${data.currentConditionText}`
+        const todayConditions = document.createElement('span')
+        todayConditions.id = 'today-conditions'
+        todayConditions.textContent = `${data.currentConditionText}`
 
         const cloudCover = document.createElement('span')
         cloudCover.id = 'cloud-cover'
         cloudCover.textContent = `Cloud cover: ${data.cloudCover}%`
 
-        extraInfoContainer.append(address, description, cloudCover)
+        extraInfoContainer.append(address, todayConditions, cloudCover)
         basicInfoContainer.append(extraInfoContainer)
 
         // Today's temp and rain graph
@@ -164,14 +178,46 @@ function displayData(data) {
         const title = document.createElement('h2')
         title.textContent = "7 day forecast"
 
-        const tempContainer = document.createElement('div')
+        const forecastDaysContainer = document.createElement('div')
+        forecastDaysContainer.id = 'forecast-week-container'
+        
         for (let day = 0; day < 7; day++) {
-            const temperature = document.createElement('span')
-            temperature.textContent = `${data.weekTemps[day]}°C`
-            tempContainer.append(temperature)
-        }
+            const dayContainer = document.createElement('div')
+            dayContainer.className = 'forecast-day-container'
 
-        forecastInfo.append(title, tempContainer)
+            const dayName = document.createElement('span')
+            dayName.className = 'forecast-day-name'
+            const name = Temporal.PlainDate.from(data.weekDateTime[day]).toLocaleString('en-US', { weekday: 'short' })
+            dayName.textContent = name
+
+            const icon = document.createElement('div')
+            icon.className = 'forecast-weather-icon'
+
+            if (data.weekRain[day] / 24 >= 3) {
+                icon.style['background-image'] = 'var(--heavy-rain)'
+            } else if (data.weekRain[day] / 24 < 3 && data.weekRain[day] / 24 >= 0.2) {
+                icon.style['background-image'] = 'var(--drizzle)'
+            } else if (data.weekClouds[day] >= 75 && data.weekRain[day] / 24 < 0.2) {
+                icon.style['background-image'] = 'var(--cloudy)'
+            } else if (data.weekClouds[day] >= 25 && data.weekClouds[day] < 75) {
+                icon.style['background-image'] = 'var(--partly-cloudy-day)'
+            } else if (data.weekClouds[day] < 25) {
+                icon.style['background-image'] = 'var(--clear-day)'
+            }
+
+            const tempHi = document.createElement('span')
+            tempHi.textContent = `${data.weekTempsHi[day]}°`
+            tempHi.className = 'forecast-temp-high'
+
+            const tempLo = document.createElement('span')
+            tempLo.textContent = `${data.weekTempsLo[day]}°`
+            tempLo.className = 'forecast-temp-low'
+            
+            dayContainer.append(dayName, icon, tempHi, tempLo)
+            forecastDaysContainer.append(dayContainer)
+        }
+        
+        forecastInfo.append(title, forecastDaysContainer)
     }
 
     displayToday(data)
@@ -179,6 +225,7 @@ function displayData(data) {
 }
 
 function drawGraph(data) {
+    // The whole graph is just one svg
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
     svg.setAttribute('viewBox', '0 0 600 110')
     const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs')
@@ -215,7 +262,7 @@ function drawTemp(svg, defs, data, riseHour, setHour) {
         if (data.hourList[i] === riseHour) riseX = tempX
         if (data.hourList[i] === setHour) setX = tempX
 
-        // Annotate only every 3rd temp for clarity
+        // Annotate only every 3rd temp for visual clarity
         if (i % 3 === 0) {
             // temps
             const tempText = document.createElementNS('http://www.w3.org/2000/svg', 'text')
@@ -350,8 +397,8 @@ function drawRain(svg, defs, data, riseHour, setHour) {
         rainLineBg.setAttribute('y', 100 - rain[p] * 0.28)  // Ensures that the drops don't overlap with rainLine
         rainLineBg.setAttribute('width', 23)
         rainLineBg.setAttribute('height', rain[p] * 0.28)
-        temps[p] > 0 ? rainLineBg.setAttribute('fill', 'url(#rain-pattern-light)') : rainLineBg.setAttribute('fill', 'url(#snow-pattern)')
-        // Add water droplets visually, if heavier rain fall
+
+        // Add water droplets, if rain fall. More droplets with heavier rainfall
         const dropTwo = document.createElementNS('http://www.w3.org/2000/svg', 'image')
         if (data.hourlyRainAmount[p] >= 3) {
             const rainPatternHeavy = rainPatternLight.cloneNode()
@@ -372,7 +419,7 @@ function drawRain(svg, defs, data, riseHour, setHour) {
             defs.appendChild(rainPatternHeavy)
 
             temps[p] > 0 ? rainLineBg.setAttribute('fill', 'url(#rain-pattern-heavy)') : rainLineBg.setAttribute('fill', 'url(#snow-pattern)')
-        } else if (data.hourlyRainAmount[p] < 3 && data.hourlyRainAmount[p] >= 2) {
+        } else if (data.hourlyRainAmount[p] < 3 && data.hourlyRainAmount[p] >= 1.5) {
             const rainPatternMedium = rainPatternLight.cloneNode()
             rainPatternMedium.id = 'rain-pattern-medium'
             rainPatternMedium.setAttribute('width', '50%')
@@ -391,6 +438,10 @@ function drawRain(svg, defs, data, riseHour, setHour) {
             defs.appendChild(rainPatternMedium)
 
             temps[p] > 0 ? rainLineBg.setAttribute('fill', 'url(#rain-pattern-medium)') : rainLineBg.setAttribute('fill', 'url(#snow-pattern)')
+        } else if (data.hourlyRainAmount[p] < 1.5 && data.hourlyRainAmount[p] >= 0.1) {
+            temps[p] > 0 ? rainLineBg.setAttribute('fill', 'url(#rain-pattern-light)') : rainLineBg.setAttribute('fill', 'url(#snow-pattern)')
+        } else {
+            rainLineBg.setAttribute('fill', 'none')
         }
 
         svg.append(rainLine, rainLineBg)
@@ -480,8 +531,7 @@ function determineColoring(svg, defs, data, avgTemp, curve, curveBg, riseX, setX
 
 function getRiseSet(data) {
     // Get sunrise and sunset hours in local time
-    let rise
-    let set
+    let rise, set
     const offsetHour = Math.trunc(data.timeOffset)
     const offsetMins = Number.parseInt((data.timeOffset - offsetHour) * 60)
     if (!Number.isInteger(data.timeOffset)) {

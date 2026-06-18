@@ -4,13 +4,16 @@ body {
     --clear-day: url('./visuals/clear_day.svg');
     --partly-cloudy-day: url('./visuals/partly_cloudy_day.svg');
     --cloudy: url('./visuals/cloudy.svg');
-    --rainy: url('./visuals/showers_rain.svg');
+    --heavy-rain: url('./visuals/showers_rain.svg');
+    --drizzle: url('./visuals/drizzle.svg');
     --rain-drop: url('./visuals/rain_drop.svg');
     --thunder: url('./visuals/thunderstorms.svg');
     --night: url('./visuals/mostly_clear_night.svg');
 
     font-family: "Atkinson Hyperlegible", sans-serif;
 }
+
+/* --- TODAY --- */
 
 .hero {
     display: flex;
@@ -30,7 +33,7 @@ body {
     display: flex;
     flex-direction: column;
     justify-self: center;
-    margin-top: 1em;
+    margin-top: 2em;
 
     width: 600px;
 }
@@ -50,7 +53,7 @@ body {
     flex-direction: column;
 }
 
-#weatherIcon {
+#weather-icon {
     align-self: center;
     
     height: 52px;
@@ -60,7 +63,7 @@ body {
     background-repeat: no-repeat;
 }
 
-#time-hi-lo {
+#date-hi-lo {
     font-family: 'Atkinson Hyperlegible Mono', sans-serif;
     font-size: 10px;
     padding-left: 8px
@@ -82,7 +85,7 @@ body {
     font-size: small;
 }
 
-.description {
+#today-conditions {
     font-weight: 300;
 }
 
@@ -150,3 +153,44 @@ polyline {
 #day-stop7, #day-stop11 { stop-color: #003a6130; }
 #day-stop8, #day-stop10 { stop-color: #00406c10; }
 #day-stop9 { stop-color: #00406c00; }
+
+/* --- FORECAST --- */
+
+.forecast {
+    margin-top: 1em;
+}
+
+#forecast-week-container {
+    display: flex;
+    justify-content: space-between;
+}
+
+.forecast-day-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.forecast-weather-icon {    
+    height: 28px;
+    width: 28px;
+    padding: 4px 0 4px 0;
+
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.forecast-temp-high,
+.forecast-temp-low {
+    font-family: 'Atkinson Hyperlegible Mono', sans-serif;
+    font-size: 10px;
+}
+
+.forecast-temp-high {
+    font-weight: 600;
+}
+
+.forecast-temp-low {
+    font-weight: 200;
+    color: gray;
+}
