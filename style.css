@@ -22,6 +22,12 @@ body {
     justify-self: center;
 }
 
+#error-message {
+    font-size: small;
+    font-family: 'Atkinson Hyperlegible Mono', sans-serif;
+    color: rgb(219, 0, 0);
+}
+
 .user-input {
     display: flex;
     width: 600px;

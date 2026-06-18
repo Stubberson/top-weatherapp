@@ -14,12 +14,14 @@ button.addEventListener('click', () => {
     }
 
     const location = queriedLocation.value
-    const weatherData = getData(location)
     const loading = document.createElement('img')
+    loading.id = 'loading'
     loading.src = './visuals/loading.gif'
     loading.style['width'] = '15px'
     loading.style['height'] = '15px'
     inputContainer.append(loading)
+
+    const weatherData = getData(location, loading)
     
     weatherData.then(data => {
         displayData(data)
@@ -27,11 +29,21 @@ button.addEventListener('click', () => {
     })
 })
 
-async function getData(location) {
+async function getData(location, loading) {
     try {
         const data = await fetch(`https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/${location}?unitGroup=metric&key=FWNAKE9RBN8NRBU734YD32N8E&contentType=json`)
+        // 'catch' block won't be enterd with a '400 Bad Request' error
+        const errorNotification = document.querySelector('#error-message')
+        if (!data.ok) {
+            const errorText = await data.text()
+            errorNotification.textContent = `ERROR: ${errorText.slice(16)}`
+            loading.remove()
+            return
+        } else {
+            errorNotification.textContent = ''
+        }
         const object = await data.json()
-        console.log(object)
+        // console.log(object)
 
         // 24h forecast
         const currentLocalHour = Number.parseInt(getLocalTime(object.tzoffset).toString().slice(0, 2))
@@ -97,8 +109,8 @@ async function getData(location) {
             weekRain: weekRain,
             weekClouds: weekClouds
         }
-    } catch (error) {
-        console.error(error)
+    } catch(error) {
+        console.log(error.message)
     }
 }
 
