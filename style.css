@@ -35,6 +35,12 @@ body {
     gap: 6px;
 }
 
+.user-input > input,
+.user-input > button {
+    font-family: 'Atkinson Hyperlegible Mono', sans-serif;
+    font-size: small;
+}
+
 .weather-information {
     display: flex;
     flex-direction: column;
